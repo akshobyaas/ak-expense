@@ -9,10 +9,26 @@
 
   const CATEGORIES = ['Fuel', 'Maintenance', 'Repairs', 'Accessories', 'Riding Gear', 'Modification', 'Insurance', 'Documentation', 'Other'];
   const SOURCES = ['Existing Expense App', 'Manual', 'Route95', 'Legundary', 'Invoice', 'Screenshot', 'Other'];
-  // Stored statuses. REFUNDED / PARTIALLY REFUNDED are *derived* from the Refunds tab,
-  // never typed by hand, so the refund amount is the single source of truth.
-  const STATUSES = ['CONFIRMED', 'NEEDS_REVIEW', 'DUPLICATE', 'UNVERIFIED', 'CANCELLED'];
-  const DEFAULT_SETTINGS = { countUnverified: false, countNeedsReview: true, reportedBaseline: 101167 };
+  // Stored reconciliation statuses (audit doc §11). REFUNDED / PARTIALLY_REFUNDED are *derived*
+  // from the Refunds tab, never typed by hand, so the refund amount is the single source of truth.
+  //   CONFIRMED_INCLUDED — confirmed, and already part of the existing app's reported baseline
+  //   CONFIRMED_NEW      — confirmed, and NOT part of that baseline
+  //   NEEDS_REVIEW       — real, but not yet reconciled (e.g. may already sit inside the baseline)
+  //   UNKNOWN            — unverified information
+  //   DUPLICATE          — another record of a purchase that is already counted
+  //   CANCELLED          — order cancelled (net comes from its refunds)
+  const STATUSES = ['CONFIRMED_INCLUDED', 'CONFIRMED_NEW', 'NEEDS_REVIEW', 'UNKNOWN', 'DUPLICATE', 'CANCELLED'];
+  const CONFIRMED = new Set(['CONFIRMED_INCLUDED', 'CONFIRMED_NEW']);
+  // NET_TOTAL counts confirmed records only (audit doc §17); pending ones are reported beside it.
+  const DEFAULT_SETTINGS = { countUnverified: false, countNeedsReview: false, reportedBaseline: 101167 };
+  const EXISTING_APP = 'Existing Expense App';
+  // Older rows used CONFIRMED / UNVERIFIED — map them so nothing silently changes meaning.
+  function normStatus(status, source) {
+    if (STATUSES.includes(status)) return status;
+    if (status === 'CONFIRMED' || !status) return source === EXISTING_APP ? 'CONFIRMED_INCLUDED' : 'CONFIRMED_NEW';
+    if (status === 'UNVERIFIED') return 'UNKNOWN';
+    return 'UNKNOWN';
+  }
 
   // ── money ──
   function toPaise(v) {
@@ -49,7 +65,9 @@
       source: t.source || 'Manual',
       source_reference: t.source_reference || '',
       order_reference: t.order_reference ? String(t.order_reference).replace(/^#/, '') : '',
-      status: STATUSES.includes(t.status) ? t.status : 'CONFIRMED',
+      status: normStatus(t.status, t.source || 'Manual'),
+      quantity: t.quantity === '' || t.quantity == null ? null : Number(t.quantity),
+      listed_amount: toPaise(t.listed_amount),
       verified: bool(t.verified) === true,
       installed: bool(t.installed), // true / false / null (unknown)
       duplicate_of: t.duplicate_of || null,
@@ -87,9 +105,9 @@
     if (t.kind !== 'transaction') return false;
     if (isDuplicate(t)) return false;
     if (t.amount === null) return false;
-    if (t.status === 'UNVERIFIED' && !L.settings.countUnverified) return false;
+    if (t.status === 'UNKNOWN' && !L.settings.countUnverified) return false;
     if (t.status === 'NEEDS_REVIEW' && !L.settings.countNeedsReview) return false;
-    return true; // CONFIRMED, CANCELLED (net after refunds), etc.
+    return true; // CONFIRMED_INCLUDED, CONFIRMED_NEW, CANCELLED (net after refunds)
   }
   function netOf(L, t) { return Math.max(0, (t.amount || 0) - refundTotal(L, t)); }
   function displayStatus(L, t) {
@@ -104,24 +122,31 @@
 
   // ── totals ──
   function totals(L, filterFn) {
-    let gross = 0, refunds = 0, duplicates = 0, n = 0, excludedUnverified = 0;
+    let gross = 0, refunds = 0, duplicates = 0, n = 0, excludedUnverified = 0, pending = 0, unknown = 0;
     const byCategory = {}; CATEGORIES.forEach((c) => (byCategory[c] = 0));
     for (const t of L.transactions) {
       if (filterFn && !filterFn(t)) continue;
       if (t.kind !== 'transaction') continue;
       if (isDuplicate(t)) { duplicates += t.amount || 0; continue; }
-      if (!counts(L, t)) { excludedUnverified += t.amount || 0; continue; }
+      if (!counts(L, t)) {
+        const v = Math.max(0, (t.amount || 0) - refundTotal(L, t));
+        excludedUnverified += v;
+        if (t.status === 'NEEDS_REVIEW') pending += v; else if (t.status === 'UNKNOWN') unknown += v;
+        continue;
+      }
       const r = Math.min(refundTotal(L, t), t.amount || 0);
       gross += t.amount; refunds += r; n++;
       byCategory[t.category] = (byCategory[t.category] || 0) + (t.amount - r);
     }
-    return { gross, refunds, duplicates, excluded: excludedUnverified, net: gross - refunds, count: n, byCategory };
+    // pending = NEEDS_REVIEW amounts kept OUT of net; unknown = UNKNOWN amounts kept out of net.
+    return { gross, refunds, duplicates, excluded: excludedUnverified, pending, unknown, net: gross - refunds, count: n, byCategory };
   }
 
-  // What the existing app's records in this ledger add up to vs the total it reports.
+  // What is itemised inside the existing app's reported total vs the total it reports.
+  // Itemised = the app's own entries + anything reconciled as CONFIRMED_INCLUDED (found to sit inside it).
+  const inBaseline = (t) => t.kind === 'transaction' && !isDuplicate(t) && (t.source === EXISTING_APP || t.status === 'CONFIRMED_INCLUDED');
   function baseline(L) {
-    const imported = L.transactions.filter((t) => t.source === 'Existing Expense App' && t.kind === 'transaction' && !isDuplicate(t))
-      .reduce((s, t) => s + (t.amount || 0), 0);
+    const imported = L.transactions.filter(inBaseline).reduce((s, t) => s + (t.amount || 0), 0);
     const reported = toPaise(L.settings.reportedBaseline);
     return { reported, imported, gap: reported === null ? null : reported - imported };
   }
@@ -238,12 +263,14 @@
     const tx = L.transactions.filter((t) => t.kind === 'transaction');
     const c = (f) => tx.filter(f).length;
     return {
-      confirmed: c((t) => !isDuplicate(t) && t.status === 'CONFIRMED' && refundStatus(L, t) === 'NONE'),
+      confirmed: c((t) => !isDuplicate(t) && CONFIRMED.has(t.status) && refundStatus(L, t) === 'NONE'),
+      confirmedIncluded: c((t) => !isDuplicate(t) && t.status === 'CONFIRMED_INCLUDED' && refundStatus(L, t) === 'NONE'),
+      confirmedNew: c((t) => !isDuplicate(t) && t.status === 'CONFIRMED_NEW' && refundStatus(L, t) === 'NONE'),
       needsReview: c((t) => t.status === 'NEEDS_REVIEW'),
       duplicates: c(isDuplicate),
       refunded: c((t) => refundStatus(L, t) === 'FULL'),
       partiallyRefunded: c((t) => refundStatus(L, t) === 'PARTIAL'),
-      unverified: c((t) => t.status === 'UNVERIFIED'),
+      unverified: c((t) => t.status === 'UNKNOWN'),
       unreconciledExternal: c((t) => !isDuplicate(t) && t.source !== 'Existing Expense App' && !t.verified),
       undated: c((t) => !isDuplicate(t) && !t.date),
       lineItems: L.transactions.length - tx.length,
@@ -285,13 +312,13 @@
   function latest(L) { return query(L, { sort: 'newest' }).find((t) => counts(L, t) && t.date) || null; }
 
   // ── export ──
-  const CSV_COLS = ['id', 'kind', 'parent_id', 'expenditure', 'amount', 'refunded', 'net', 'counts_in_total', 'display_status', 'date', 'notes', 'category', 'subcategory', 'source', 'source_reference', 'order_reference', 'status', 'verified', 'installed', 'duplicate_of', 'related', 'odometer_km', 'attachment_url', 'created_at', 'updated_at'];
+  const CSV_COLS = ['id', 'kind', 'parent_id', 'expenditure', 'amount', 'refunded', 'net', 'counts_in_total', 'display_status', 'date', 'notes', 'category', 'subcategory', 'source', 'source_reference', 'order_reference', 'status', 'verified', 'installed', 'quantity', 'listed_amount', 'duplicate_of', 'related', 'odometer_km', 'attachment_url', 'created_at', 'updated_at'];
   function toCSV(L) {
     const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const lines = [CSV_COLS.join(',')];
     for (const t of L.transactions) {
       const row = Object.assign({}, t, {
-        amount: fromPaise(t.amount), refunded: fromPaise(refundTotal(L, t)), net: t.kind === 'transaction' ? fromPaise(netOf(L, t)) : '',
+        amount: fromPaise(t.amount), listed_amount: fromPaise(t.listed_amount), refunded: fromPaise(refundTotal(L, t)), net: t.kind === 'transaction' ? fromPaise(netOf(L, t)) : '',
         counts_in_total: counts(L, t), display_status: displayStatus(L, t), installed: t.installed === null ? '' : t.installed,
       });
       lines.push(CSV_COLS.map((k) => esc(row[k])).join(','));
@@ -300,7 +327,7 @@
   }
 
   return {
-    CATEGORIES, SOURCES, STATUSES, DEFAULT_SETTINGS,
+    CATEGORIES, SOURCES, STATUSES, CONFIRMED, EXISTING_APP, DEFAULT_SETTINGS, normStatus, inBaseline,
     toPaise, fromPaise, formatINR, normTx, build, refundTotal, refundStatus, isDuplicate, counts, netOf,
     displayStatus, categoryOf, totals, baseline, monthly, cumulative, averageMonthly, litresOf, fuelStats,
     findDuplicates, issues, reconciliation, query, latest, toCSV,

@@ -1,5 +1,9 @@
-// seed.js — the known history, transcribed exactly as provided.
+// data/seed.js — Hunter 350 historical dataset, transcribed from
+// "Bike_Expense_Audit_Context.md" (the source-of-truth audit document).
+// Backend-only: used by tests and by `scripts/push.mjs` to write the Sheet. The frontend never loads it.
 // Rules followed: no invented dates, prices, vendors or mileage. Unknown = null/''.
+// Anything the audit marks "needs reconciliation" is NEEDS_REVIEW and stays OUT of the net total
+// until it is reconciled as CONFIRMED_INCLUDED (already inside the ₹1,01,167 baseline) or CONFIRMED_NEW.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.SEED = factory();
@@ -77,13 +81,13 @@
   const transactions = []; const refunds = [];
   const tx = (o) => transactions.push(Object.assign({
     kind: 'transaction', parent_id: '', notes: '', subcategory: '', source_reference: '', order_reference: '',
-    status: 'CONFIRMED', verified: false, installed: null, duplicate_of: '', related: '', odometer_km: '',
-    attachment_url: '', created_at: IMPORTED_AT, updated_at: IMPORTED_AT,
+    status: 'NEEDS_REVIEW', verified: false, installed: null, duplicate_of: '', related: '', odometer_km: '',
+    attachment_url: '', quantity: '', listed_amount: '', created_at: IMPORTED_AT, updated_at: IMPORTED_AT,
   }, o));
 
   existing.forEach(([category, amount, notes, date], i) => {
     const id = 'ea-' + String(i + 1).padStart(3, '0');
-    const o = { id, expenditure: nameFor(category, notes), amount, date, notes, category, source: EA, source_reference: 'Existing app entry', verified: true };
+    const o = { id, expenditure: nameFor(category, notes), amount, date, notes, category, source: EA, source_reference: 'Existing app entry #' + (i + 1), verified: true, status: 'CONFIRMED_INCLUDED' };
     if (amount === 1) { o.status = 'NEEDS_REVIEW'; o.notes = notes + ' · ₹1 looks like a placeholder — confirm or correct'; }
     tx(o);
   });
@@ -91,30 +95,30 @@
   const JACKET = EA_ID(15900), MIRRORS = EA_ID(1300), AUX = EA_ID(9192), BASH = EA_ID(9200);
 
   // ── Manually identified later ──
-  tx({ id: 'm-screen-guard', expenditure: 'Meter console screen guard', amount: 800, date: null, notes: '₹600 + ₹200', category: 'Accessories', source: 'Manual' });
+  tx({ id: 'm-screen-guard', expenditure: 'Meter console screen guard', amount: 800, date: null, notes: '₹600 + ₹200 · Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Accessories', source: 'Manual' });
   transactions.push(
-    { id: 'm-screen-guard-1', kind: 'line_item', parent_id: 'm-screen-guard', expenditure: 'Screen guard — part 1', amount: 600, date: null, notes: 'Component of ₹800 total', category: 'Accessories', source: 'Manual', status: 'CONFIRMED', created_at: IMPORTED_AT, updated_at: IMPORTED_AT },
-    { id: 'm-screen-guard-2', kind: 'line_item', parent_id: 'm-screen-guard', expenditure: 'Screen guard — part 2', amount: 200, date: null, notes: 'Component of ₹800 total', category: 'Accessories', source: 'Manual', status: 'CONFIRMED', created_at: IMPORTED_AT, updated_at: IMPORTED_AT });
-  tx({ id: 'm-visor', expenditure: 'Dark visor — Brutale Corsa', amount: 1000, date: null, category: 'Riding Gear', source: 'Manual' });
-  tx({ id: 'm-socks', expenditure: 'Raida socks', amount: 300, date: null, category: 'Riding Gear', source: 'Manual' });
-  tx({ id: 'm-mirrors-2', expenditure: 'Replacement mirrors', amount: 2150, date: null, notes: 'Old mirrors broke — separate later purchase', category: 'Accessories', subcategory: 'Replacement', source: 'Manual', related: 'replacement_of:' + MIRRORS });
-  tx({ id: 'm-sliders', expenditure: 'Sliders', amount: 1690, date: null, category: 'Accessories', source: 'Manual' });
-  tx({ id: 'm-bungee', expenditure: 'Bungee cords', amount: 1000, date: null, notes: '4 pieces', category: 'Accessories', source: 'Manual' });
+    { id: 'm-screen-guard-1', kind: 'line_item', parent_id: 'm-screen-guard', expenditure: 'Screen guard — part 1', amount: 600, date: null, notes: 'Component of ₹800 total', category: 'Accessories', source: 'Manual', status: 'NEEDS_REVIEW', quantity: '', listed_amount: '', created_at: IMPORTED_AT, updated_at: IMPORTED_AT },
+    { id: 'm-screen-guard-2', kind: 'line_item', parent_id: 'm-screen-guard', expenditure: 'Screen guard — part 2', amount: 200, date: null, notes: 'Component of ₹800 total', category: 'Accessories', source: 'Manual', status: 'NEEDS_REVIEW', quantity: '', listed_amount: '', created_at: IMPORTED_AT, updated_at: IMPORTED_AT });
+  tx({ id: 'm-visor', expenditure: 'Dark visor — Brutale Corsa', amount: 1000, date: null, notes: 'Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Riding Gear', source: 'Manual' });
+  tx({ id: 'm-socks', expenditure: 'Raida socks', amount: 300, date: null, notes: 'Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Riding Gear', source: 'Manual' });
+  tx({ id: 'm-mirrors-2', expenditure: 'Replacement mirrors', amount: 2150, date: null, notes: 'Replaced after original mirrors broke — separate from the ₹1,300 originals; subject to final source verification', category: 'Accessories', subcategory: 'Replacement', source: 'Manual', related: 'replacement_of:' + MIRRORS });
+  tx({ id: 'm-sliders', expenditure: 'Sliders', amount: 1690, date: null, notes: 'Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Accessories', source: 'Manual' });
+  tx({ id: 'm-bungee', expenditure: 'Bungee cords', amount: 1000, date: null, notes: '4 pieces · Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Accessories', source: 'Manual', quantity: 4 });
   // Mentioned again manually — same purchase as the existing-app entry. Kept for audit, excluded from totals.
   tx({ id: 'm-jacket', expenditure: 'Riding jacket + pants', amount: 15900, date: null, notes: 'Manual mention of the same purchase', category: 'Riding Gear', source: 'Manual', status: 'DUPLICATE', duplicate_of: JACKET });
 
   // ── Legundary ──
-  tx({ id: 'lg-cap0110', expenditure: 'Interceptor rear brake fluid cap SS', amount: 590, date: null, notes: 'SKU CAP0110', category: 'Modification', source: 'Legundary', source_reference: 'SKU CAP0110', installed: true });
+  tx({ id: 'lg-cap0110', expenditure: 'Interceptor rear brake fluid cap SS', amount: 590, date: null, notes: 'SKU CAP0110 · warranty 6 months · Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Modification', source: 'Legundary', source_reference: 'SKU CAP0110', installed: true, quantity: 1 });
   tx({ id: 'lg-bash', expenditure: 'Bash Plate + Crash Guard + Top Rack', amount: 9200, date: null, notes: 'Legundary record of the purchase already in the existing app', category: 'Accessories', source: 'Legundary', status: 'DUPLICATE', duplicate_of: BASH });
 
   // ── Route95 — the order total is the transaction; products are line items ──
-  tx({ id: 'r95-5597', expenditure: 'Route95 order #5597', amount: 1993.10, date: '2026-07-24', notes: 'WELCOME5 · saved ₹104.90 · free shipping · DTDC', category: 'Accessories', source: 'Route95', order_reference: '5597', verified: true, related: 'see:' + AUX });
+  tx({ id: 'r95-5597', expenditure: 'Route95 order #5597', amount: 1993.10, date: '2026-07-24', notes: 'WELCOME5 · saved ₹104.90 · free shipping · Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Accessories', source: 'Route95', source_reference: 'DTDC M1000925021', order_reference: '5597', verified: true, related: 'see:' + AUX });
   transactions.push(
-    { id: 'r95-5597-1', kind: 'line_item', parent_id: 'r95-5597', expenditure: 'Vibration Dampener for Twist & Go Phone Mount', amount: 854.05, date: '2026-07-24', notes: 'Listed ₹899 · WELCOME5', category: 'Accessories', source: 'Route95', order_reference: '5597', status: 'CONFIRMED', verified: true, created_at: IMPORTED_AT, updated_at: IMPORTED_AT },
-    { id: 'r95-5597-2', kind: 'line_item', parent_id: 'r95-5597', expenditure: 'Handlebar Phone Mount & Universal Adapter for Twist & Go Phone Mount', amount: 1139.05, date: '2026-07-24', notes: 'Listed ₹1,199 · WELCOME5', category: 'Accessories', source: 'Route95', order_reference: '5597', status: 'CONFIRMED', verified: true, created_at: IMPORTED_AT, updated_at: IMPORTED_AT });
-  tx({ id: 'r95-5693', expenditure: 'Route95 order #5693', amount: 2597, date: '2026-08-04', notes: 'Free shipping', category: 'Accessories', source: 'Route95', order_reference: '5693', verified: true });
+    { id: 'r95-5597-1', kind: 'line_item', parent_id: 'r95-5597', expenditure: 'Vibration Dampener for Twist & Go Phone Mount', amount: 854.05, date: '2026-07-24', notes: 'Listed ₹899 · WELCOME5', category: 'Accessories', source: 'Route95', order_reference: '5597', status: 'NEEDS_REVIEW', verified: true, quantity: 1, listed_amount: 899, created_at: IMPORTED_AT, updated_at: IMPORTED_AT },
+    { id: 'r95-5597-2', kind: 'line_item', parent_id: 'r95-5597', expenditure: 'Handlebar Phone Mount & Universal Adapter for Twist & Go Phone Mount', amount: 1139.05, date: '2026-07-24', notes: 'Listed ₹1,199 · WELCOME5', category: 'Accessories', source: 'Route95', order_reference: '5597', status: 'NEEDS_REVIEW', verified: true, quantity: 1, listed_amount: 1199, created_at: IMPORTED_AT, updated_at: IMPORTED_AT });
+  tx({ id: 'r95-5693', expenditure: 'Route95 order #5693', amount: 2597, date: '2026-08-04', notes: 'Free shipping · Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Accessories', source: 'Route95', source_reference: 'DTDC M1001879107', order_reference: '5693', verified: true });
   [['Double Socket Arm – B Size Short', 899], ['Universal Adapter Pack for Twist & Go Phone Mount', 499], ['Twist n Go Phone Mount with 1" B Size Ball', 1199]].forEach(([n, a], i) =>
-    transactions.push({ id: 'r95-5693-' + (i + 1), kind: 'line_item', parent_id: 'r95-5693', expenditure: n, amount: a, date: '2026-08-04', notes: '', category: 'Accessories', source: 'Route95', order_reference: '5693', status: 'CONFIRMED', verified: true, created_at: IMPORTED_AT, updated_at: IMPORTED_AT }));
+    transactions.push({ id: 'r95-5693-' + (i + 1), kind: 'line_item', parent_id: 'r95-5693', expenditure: n, amount: a, date: '2026-08-04', notes: '', category: 'Accessories', source: 'Route95', order_reference: '5693', status: 'NEEDS_REVIEW', verified: true, quantity: 1, listed_amount: a, created_at: IMPORTED_AT, updated_at: IMPORTED_AT }));
   tx({ id: 'r95-5771', expenditure: 'Route95 order #5771', amount: 1469, date: null, notes: 'Cancelled — full refund', category: 'Accessories', source: 'Route95', order_reference: '5771', status: 'CANCELLED', verified: true });
   refunds.push({ id: 'rf-5771', transaction_id: 'r95-5771', amount: 1469, date: null, notes: 'Full refund on cancellation', created_at: IMPORTED_AT });
 

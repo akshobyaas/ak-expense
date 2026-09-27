@@ -1,0 +1,576 @@
+{
+  "mode": "upsert",
+  "description": "Apply audit statuses (CONFIRMED_INCLUDED / NEEDS_REVIEW), tracking numbers, listed prices, warranty note",
+  "transactions": [
+    {
+      "id": "ea-001",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.20 L — Full Tank",
+      "source_reference": "Existing app entry #1",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-002",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.65 L",
+      "source_reference": "Existing app entry #2",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-003",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "9.89 L",
+      "source_reference": "Existing app entry #3",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-004",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Full Service Done: Yes",
+      "source_reference": "Existing app entry #4",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-006",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "6.76 L",
+      "source_reference": "Existing app entry #6",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-007",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.22 L",
+      "source_reference": "Existing app entry #7",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-008",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.70 L",
+      "source_reference": "Existing app entry #8",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-009",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.53 L",
+      "source_reference": "Existing app entry #9",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-010",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "9.09 L",
+      "source_reference": "Existing app entry #10",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-011",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "9.07 L",
+      "source_reference": "Existing app entry #11",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-012",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.53 L",
+      "source_reference": "Existing app entry #12",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-013",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "6.75 L",
+      "source_reference": "Existing app entry #13",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-014",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "9.44 L",
+      "source_reference": "Existing app entry #14",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-015",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "4.42 L",
+      "source_reference": "Existing app entry #15",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-016",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "9.88 L",
+      "source_reference": "Existing app entry #16",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-017",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.89 L",
+      "source_reference": "Existing app entry #17",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-018",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.24 L",
+      "source_reference": "Existing app entry #18",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-019",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "9.04 L",
+      "source_reference": "Existing app entry #19",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-020",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.36 L",
+      "source_reference": "Existing app entry #20",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-021",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Adventure/Touring Jacket + Adventure/Touring Pants",
+      "source_reference": "Existing app entry #21",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-022",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "3.42 L",
+      "source_reference": "Existing app entry #22",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-023",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "9.56 L",
+      "source_reference": "Existing app entry #23",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-024",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Wash, polish, lube",
+      "source_reference": "Existing app entry #24",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-025",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.90 L",
+      "source_reference": "Existing app entry #25",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-026",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.37 L",
+      "source_reference": "Existing app entry #26",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-027",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Leather Riding Gloves + Rain Gloves",
+      "source_reference": "Existing app entry #27",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-028",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.91 L",
+      "source_reference": "Existing app entry #28",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-029",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Full Service Done: Yes",
+      "source_reference": "Existing app entry #29",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-030",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.31 L",
+      "source_reference": "Existing app entry #30",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-031",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.95 L",
+      "source_reference": "Existing app entry #31",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-032",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "4.75 L",
+      "source_reference": "Existing app entry #32",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-033",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.44 L",
+      "source_reference": "Existing app entry #33",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-034",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "1.56 L",
+      "source_reference": "Existing app entry #34",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-035",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "10.33 L",
+      "source_reference": "Existing app entry #35",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-036",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Rear View Mirror Left + Rear View Mirror Right",
+      "source_reference": "Existing app entry #36",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-037",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.95 L",
+      "source_reference": "Existing app entry #37",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-038",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Full Service Done: No",
+      "source_reference": "Existing app entry #38",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-039",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "8.17 L",
+      "source_reference": "Existing app entry #39",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-040",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Full Service Done: No",
+      "source_reference": "Existing app entry #40",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-041",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "5.59 L",
+      "source_reference": "Existing app entry #41",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-042",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "5.30 L",
+      "source_reference": "Existing app entry #42",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-043",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "1.71 L",
+      "source_reference": "Existing app entry #43",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-044",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Rear Master Cylinder Protector",
+      "source_reference": "Existing app entry #44",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-045",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "9.22 L",
+      "source_reference": "Existing app entry #45",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-046",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Full Service Done: No",
+      "source_reference": "Existing app entry #46",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-047",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.20 L",
+      "source_reference": "Existing app entry #47",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-048",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Full Service Done: No",
+      "source_reference": "Existing app entry #48",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-049",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Bluetooth Intercom",
+      "source_reference": "Existing app entry #49",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-050",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Auxiliary Lights + Helmet Lock + Phone Mount",
+      "source_reference": "Existing app entry #50",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-051",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Full-Face Helmet",
+      "source_reference": "Existing app entry #51",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-052",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "Bash Plate + Crash Guard + Top Rack",
+      "source_reference": "Existing app entry #52",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-053",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "7.34 L",
+      "source_reference": "Existing app entry #53",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "ea-054",
+      "status": "CONFIRMED_INCLUDED",
+      "notes": "6.87 L",
+      "source_reference": "Existing app entry #54",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "m-screen-guard",
+      "status": "NEEDS_REVIEW",
+      "notes": "₹600 + ₹200 · Needs reconciliation — may already be inside the ₹1,01,167 baseline",
+      "source_reference": "",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "m-screen-guard-1",
+      "status": "NEEDS_REVIEW",
+      "notes": "Component of ₹800 total",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "m-screen-guard-2",
+      "status": "NEEDS_REVIEW",
+      "notes": "Component of ₹800 total",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "m-visor",
+      "status": "NEEDS_REVIEW",
+      "notes": "Needs reconciliation — may already be inside the ₹1,01,167 baseline",
+      "source_reference": "",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "m-socks",
+      "status": "NEEDS_REVIEW",
+      "notes": "Needs reconciliation — may already be inside the ₹1,01,167 baseline",
+      "source_reference": "",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "m-mirrors-2",
+      "status": "NEEDS_REVIEW",
+      "notes": "Replaced after original mirrors broke — separate from the ₹1,300 originals; subject to final source verification",
+      "source_reference": "",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "m-sliders",
+      "status": "NEEDS_REVIEW",
+      "notes": "Needs reconciliation — may already be inside the ₹1,01,167 baseline",
+      "source_reference": "",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "m-bungee",
+      "status": "NEEDS_REVIEW",
+      "notes": "4 pieces · Needs reconciliation — may already be inside the ₹1,01,167 baseline",
+      "source_reference": "",
+      "quantity": 4,
+      "listed_amount": ""
+    },
+    {
+      "id": "m-jacket",
+      "status": "DUPLICATE",
+      "notes": "Manual mention of the same purchase",
+      "source_reference": "",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "lg-cap0110",
+      "status": "NEEDS_REVIEW",
+      "notes": "SKU CAP0110 · warranty 6 months · Needs reconciliation — may already be inside the ₹1,01,167 baseline",
+      "source_reference": "SKU CAP0110",
+      "quantity": 1,
+      "listed_amount": ""
+    },
+    {
+      "id": "lg-bash",
+      "status": "DUPLICATE",
+      "notes": "Legundary record of the purchase already in the existing app",
+      "source_reference": "",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "r95-5597",
+      "status": "NEEDS_REVIEW",
+      "notes": "WELCOME5 · saved ₹104.90 · free shipping · Needs reconciliation — may already be inside the ₹1,01,167 baseline",
+      "source_reference": "DTDC M1000925021",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "r95-5597-1",
+      "status": "NEEDS_REVIEW",
+      "notes": "Listed ₹899 · WELCOME5",
+      "quantity": 1,
+      "listed_amount": 899
+    },
+    {
+      "id": "r95-5597-2",
+      "status": "NEEDS_REVIEW",
+      "notes": "Listed ₹1,199 · WELCOME5",
+      "quantity": 1,
+      "listed_amount": 1199
+    },
+    {
+      "id": "r95-5693",
+      "status": "NEEDS_REVIEW",
+      "notes": "Free shipping · Needs reconciliation — may already be inside the ₹1,01,167 baseline",
+      "source_reference": "DTDC M1001879107",
+      "quantity": "",
+      "listed_amount": ""
+    },
+    {
+      "id": "r95-5693-1",
+      "status": "NEEDS_REVIEW",
+      "notes": "",
+      "quantity": 1,
+      "listed_amount": 899
+    },
+    {
+      "id": "r95-5693-2",
+      "status": "NEEDS_REVIEW",
+      "notes": "",
+      "quantity": 1,
+      "listed_amount": 499
+    },
+    {
+      "id": "r95-5693-3",
+      "status": "NEEDS_REVIEW",
+      "notes": "",
+      "quantity": 1,
+      "listed_amount": 1199
+    },
+    {
+      "id": "r95-5771",
+      "status": "CANCELLED",
+      "notes": "Cancelled — full refund",
+      "source_reference": "",
+      "quantity": "",
+      "listed_amount": ""
+    }
+  ],
+  "refunds": []
+}

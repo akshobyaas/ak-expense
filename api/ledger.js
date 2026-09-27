@@ -4,7 +4,10 @@
 // GET    ?type=all                         → { transactions, refunds, meta }
 // POST   { type:'transactions', item }     → append (server stamps created_at/updated_at)
 // POST   { type:'refunds', item }          → append
-// POST   { type:'import', transactions, refunds, meta, force? } → first-time seed (refuses if data exists)
+// POST   { type:'import', transactions, refunds, meta }  → first-time seed (refuses if data exists)
+// POST   { type:'upsert', transactions, refunds }         → backend data entry: new ids are appended,
+//                                                           existing ids are MERGED field-by-field (never removed).
+//                                                           Used by scripts/push.mjs for audited datasets.
 // POST   { type:'upload', filename, mimeType, data } → Drive upload for invoices/screenshots
 // PUT    { type:'transactions'|'meta', item } → update row by id / key
 //
@@ -20,10 +23,11 @@ async function safeFetch(url, opts = {}) {
 
 const TX_COLS = ['id', 'kind', 'parent_id', 'expenditure', 'amount', 'date', 'notes', 'category', 'subcategory', 'source',
   'source_reference', 'order_reference', 'status', 'verified', 'installed', 'duplicate_of', 'related', 'odometer_km',
-  'attachment_url', 'created_at', 'updated_at'];
+  'attachment_url', 'created_at', 'updated_at', 'quantity', 'listed_amount'];
 const RF_COLS = ['id', 'transaction_id', 'amount', 'date', 'notes', 'created_at'];
 const META_COLS = ['key', 'value'];
-const colLetter = (n) => String.fromCharCode(64 + n); // ≤ 26 columns
+const colLetter = (n) => String.fromCharCode(64 + n); // ≤ 26 columns (Transactions uses 23)
+const STATUSES = ['CONFIRMED_INCLUDED', 'CONFIRMED_NEW', 'NEEDS_REVIEW', 'UNKNOWN', 'DUPLICATE', 'CANCELLED', 'CONFIRMED', 'UNVERIFIED'];
 const TABS = {
   transactions: { name: 'Transactions', cols: TX_COLS },
   refunds: { name: 'Refunds', cols: RF_COLS },
@@ -38,6 +42,8 @@ function validateTx(o) {
   if (!o.expenditure) return 'expenditure required';
   if (o.amount === '' || o.amount === null || o.amount === undefined || !Number.isFinite(Number(o.amount))) return 'amount must be a number';
   if (o.date && !/^\d{4}-\d{2}-\d{2}$/.test(o.date)) return 'date must be YYYY-MM-DD or blank';
+  if (o.status && !STATUSES.includes(o.status)) return `unknown status ${o.status}`;
+  if (o.kind === 'line_item' && !o.parent_id) return 'line items need parent_id';
   return null;
 }
 
@@ -127,13 +133,39 @@ module.exports = async function handler(req, res) {
       if (body.type === 'import') {
         await ensureTabs();
         const existing = await read(TABS.transactions);
-        if (existing.length && !body.force) return res.status(409).json({ error: `Transactions tab already has ${existing.length} rows — import refused to avoid double counting` });
+        if (existing.length) return res.status(409).json({ error: `Transactions tab already has ${existing.length} rows — import refused to avoid double counting` });
         const txs = body.transactions || [];
         for (const t of txs) { const err = validateTx(t); if (err) return res.status(400).json({ error: `${t.id}: ${err}` }); }
         if (txs.length) await append(TABS.transactions, txs.map((t) => toRow(TABS.transactions, t)));
         if ((body.refunds || []).length) await append(TABS.refunds, body.refunds.map((r) => toRow(TABS.refunds, r)));
         if (body.meta) await append(TABS.meta, Object.entries(body.meta).map(([k, v]) => [k, String(v)]));
         return res.status(200).json({ success: true, imported: txs.length });
+      }
+
+      if (body.type === 'upsert') {
+        await ensureTabs();
+        const [curTx, curRf] = await Promise.all([read(TABS.transactions), read(TABS.refunds)]);
+        const rowOf = new Map(curTx.map((t, i) => [t.id, i]));
+        const updates = []; const appends = []; const errors = [];
+        for (const patch of body.transactions || []) {
+          if (!patch || !patch.id) { errors.push('item without id'); continue; }
+          const i = rowOf.get(String(patch.id));
+          const merged = i === undefined ? Object.assign({}, patch, { created_at: patch.created_at || now, updated_at: now })
+            : Object.assign({}, curTx[i], patch, { created_at: curTx[i].created_at || now, updated_at: now });
+          const err = validateTx(merged); if (err) { errors.push(`${patch.id}: ${err}`); continue; }
+          if (i === undefined) appends.push(merged); else updates.push({ row: i + 2, item: merged });
+        }
+        if (errors.length) return res.status(400).json({ error: 'Nothing written — fix these first', errors });
+        const rfIds = new Set(curRf.map((r) => r.id));
+        const newRefunds = (body.refunds || []).filter((r) => r && r.id && !rfIds.has(String(r.id)));
+        if (updates.length) {
+          const { data: d } = await safeFetch(`${base}/values:batchUpdate`, { method: 'POST', headers: auth, body: JSON.stringify({
+            valueInputOption: 'RAW', data: updates.map((u) => ({ range: `${TABS.transactions.name}!A${u.row}:${lastCol(TABS.transactions)}${u.row}`, values: [toRow(TABS.transactions, u.item)] })) }) });
+          if (d.error) throw new Error(d.error.message);
+        }
+        if (appends.length) await append(TABS.transactions, appends.map((t) => toRow(TABS.transactions, t)));
+        if (newRefunds.length) await append(TABS.refunds, newRefunds.map((r) => toRow(TABS.refunds, Object.assign({ created_at: now }, r))));
+        return res.status(200).json({ success: true, updated: updates.length, added: appends.length, refundsAdded: newRefunds.length });
       }
 
       const cfg = TABS[body.type];

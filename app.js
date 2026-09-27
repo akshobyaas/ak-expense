@@ -61,7 +61,8 @@
         } catch (e) { this.error = e.message; }
       }
       const local = ls.get(LOCAL_KEY, null);
-      this.raw = local ? { transactions: local.transactions, refunds: local.refunds } : { transactions: JSON.parse(JSON.stringify(SEED.transactions)), refunds: JSON.parse(JSON.stringify(SEED.refunds)) };
+      // No expense data lives in the frontend: without the Sheet this device starts empty.
+      this.raw = local ? { transactions: local.transactions, refunds: local.refunds } : { transactions: [], refunds: [] };
       Object.assign(this.settings, ls.get('akx.settings', {}));
       if (!local) this.saveLocal();
     },
@@ -111,7 +112,7 @@
       ? `<a href="#/add" class="tab-add" aria-label="Add expense">${n.icon}</a>`
       : `<a href="#/${n.r}" class="tab ${active(n.r)}">${n.icon}<span>${n.label}</span></a>`).join('');
     const rc = L ? Ledger.reconciliation(L) : null;
-    $('#rail').innerHTML = `<div class="brand"><div class="brand-mark">${logo}</div><div><h1>Ledger</h1><small>Interceptor 650 · ownership</small></div></div>
+    $('#rail').innerHTML = `<div class="brand"><div class="brand-mark">${logo}</div><div><h1>Ledger</h1><small>Hunter 350 · ownership</small></div></div>
       <a href="#/add" class="btn primary add">${ic.plus} Add expense</a>
       ${NAV.filter((n) => !n.add).map((n) => `<a class="nav ${active(n.r)}" href="#/${n.r}">${n.icon}<span style="flex:1">${n.label}</span>${n.r === 'reconcile' && rc && rc.needsReview ? `<span class="pill warn">${rc.needsReview}</span>` : ''}</a>`).join('')}
       <div class="spacer"></div>
@@ -126,7 +127,7 @@
   const topbar = (title, right = '') => `<div class="top"><div class="brand"><div class="brand-mark">${logo}</div><div><h1>${esc(title)}</h1><small>Motorcycle ledger</small></div></div><div style="display:flex;gap:8px;align-items:center">${right}<a class="iconbtn" href="#/settings" aria-label="Data and settings">${ic.gear}</a></div></div>`;
 
   // ── shared bits ──
-  const STATUS_PILL = { CONFIRMED: ['good', 'Confirmed'], NEEDS_REVIEW: ['warn', 'Needs review'], DUPLICATE: ['info', 'Duplicate'], UNVERIFIED: ['', 'Unverified'], CANCELLED: ['bad', 'Cancelled'], REFUNDED: ['bad', 'Refunded'], 'PARTIALLY REFUNDED': ['warn', 'Part refunded'] };
+  const STATUS_PILL = { CONFIRMED_INCLUDED: ['good', 'In old app total'], CONFIRMED_NEW: ['good', 'Confirmed new'], NEEDS_REVIEW: ['warn', 'Needs review'], DUPLICATE: ['info', 'Duplicate'], UNKNOWN: ['', 'Unverified'], CANCELLED: ['bad', 'Cancelled'], REFUNDED: ['bad', 'Refunded'], 'PARTIALLY REFUNDED': ['warn', 'Part refunded'] };
   const pill = (ds) => { const [c, t] = STATUS_PILL[ds] || ['', ds]; return `<span class="pill ${c}">${t}</span>`; };
   function amountHTML(t) {
     const ds = Ledger.displayStatus(L, t);
@@ -142,7 +143,7 @@
     const kids = L.children.get(t.id) || [];
     const notes = [t.notes === t.expenditure ? '' : t.notes, kids.length ? `${kids.length} line item${kids.length > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
     return `<a class="row card ${Ledger.counts(L, t) && ds !== 'REFUNDED' ? '' : 'excluded'}" href="#/e/${encodeURIComponent(t.id)}">
-      <div class="name"><span class="t">${esc(t.expenditure)}</span>${ds !== 'CONFIRMED' ? pill(ds) : ''}</div>
+      <div class="name"><span class="t">${esc(t.expenditure)}</span>${Ledger.CONFIRMED.has(ds) ? '' : pill(ds)}</div>
       <div class="amt num">${amountHTML(t)}</div>
       <div class="meta"><span class="date">${t.date ? fmtDate(t.date) : '<span class="unknown">Date unknown</span>'}</span><span class="notes">${esc(notes) || '<span class="muted">—</span>'}</span></div>
     </a>`;
@@ -223,9 +224,10 @@
     return `<div class="view">${topbar('Ledger')}
       <div class="dash-cols"><div>
         <section class="card hero">
-          <div style="display:flex;justify-content:space-between;align-items:center"><span class="label">Total ownership cost</span>${modePill()}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center"><span class="label">Confirmed ownership cost</span>${modePill()}</div>
           <div class="big num">${big}</div>
           <div class="ledger-line num"><span>Gross <b>${fmt(T.gross)}</b></span><span>Refunds <b>−${fmt(T.refunds).slice(1)}</b></span><span>Duplicates excluded <b>${fmt(T.duplicates)}</b></span></div>
+          ${T.pending ? `<a class="baseline" href="#/reconcile" style="border-top-style:solid">${ic.warn}<span><b class="num" style="color:var(--warn)">${fmt(T.pending)}</b> across ${rc.needsReview} record${rc.needsReview === 1 ? '' : 's'} is waiting for review and <b>isn't in this total</b>. Some of it may already be inside your old app's total. Reconcile each one to add it.</span></a>` : ''}
           ${B.gap ? `<a class="baseline" href="#/reconcile">${ic.info}<span>Your old app reports <b class="num" style="color:var(--text)">${fmt(B.reported)}</b>, but only ${fmt(B.imported)} of it is itemised here. The other <b class="num" style="color:var(--warn)">${fmt(B.gap)}</b> isn't itemised and isn't included in the total above.</span></a>` : ''}
         </section>
         <div class="grid g2 g3 section" style="margin-top:10px">
@@ -287,7 +289,7 @@
       <div class="field"><span>Sort</span><div class="seg" style="width:100%">${[['newest', 'Newest'], ['oldest', 'Oldest'], ['highest', 'Highest'], ['lowest', 'Lowest']].map(([v, l]) => `<button type="button" data-sort="${v}" class="${(q.sort || 'newest') === v ? 'on' : ''}" style="flex:1">${l}</button>`).join('')}</div></div>
       <div class="two"><label class="field"><span>Category</span><select class="input" name="category"><option value="">Any</option>${Ledger.CATEGORIES.map((c) => `<option ${c === catVal ? 'selected' : ''}>${c}</option>`).join('')}${catVal && catVal.includes('|') ? `<option selected value="${esc(catVal)}">${esc(catVal.replace(/\|/g, ' + '))}</option>` : ''}</select></label>
       <label class="field"><span>Source</span><select class="input" name="source">${opt(Ledger.SOURCES, q.source)}</select></label></div>
-      <div class="two"><label class="field"><span>Status</span><select class="input" name="status">${opt(['CONFIRMED', 'NEEDS_REVIEW', 'DUPLICATE', 'UNVERIFIED', 'CANCELLED', 'REFUNDED', 'PARTIALLY REFUNDED'], q.status)}</select></label>
+      <div class="two"><label class="field"><span>Status</span><select class="input" name="status">${opt(['CONFIRMED_INCLUDED', 'CONFIRMED_NEW', 'NEEDS_REVIEW', 'UNKNOWN', 'DUPLICATE', 'CANCELLED', 'REFUNDED', 'PARTIALLY REFUNDED'], q.status)}</select></label>
       <label class="field"><span>Installed</span><select class="input" name="installed"><option value="">Any</option>${['yes', 'no', 'unknown'].map((v) => `<option value="${v}" ${q.installed === v ? 'selected' : ''}>${v[0].toUpperCase() + v.slice(1)}</option>`).join('')}</select></label></div>
       <label class="check"><input type="checkbox" name="refunded" value="yes" ${q.refunded === 'yes' ? 'checked' : ''}/> Only refunded</label>
       <div class="two"><label class="field"><span>From</span><input class="input" type="date" name="from" value="${esc(q.from || '')}"/></label><label class="field"><span>To</span><input class="input" type="date" name="to" value="${esc(q.to || '')}"/></label></div>
@@ -316,7 +318,7 @@
     const ds = Ledger.displayStatus(L, t); const kids = L.children.get(t.id) || []; const parent = t.parent_id ? L.byId.get(t.parent_id) : null;
     const dupOf = t.duplicate_of ? L.byId.get(t.duplicate_of) : null; const dupsOfThis = L.transactions.filter((x) => x.duplicate_of === t.id);
     const refunds = L.refundsBy.get(t.id) || []; const rsum = Ledger.refundTotal(L, t); const counts = Ledger.counts(L, t);
-    const why = t.kind === 'line_item' ? 'No — line item; its parent order carries the money' : Ledger.isDuplicate(t) ? 'No — duplicate of another record' : !counts ? `No — ${t.status === 'UNVERIFIED' ? 'unverified records are excluded (Settings)' : 'excluded by settings'}` : rsum ? `Yes — net ${fmt(Ledger.netOf(L, t))} after refunds` : 'Yes';
+    const why = t.kind === 'line_item' ? 'No — line item; its parent order carries the money' : Ledger.isDuplicate(t) ? 'No — duplicate of another record' : !counts ? `No — ${t.status === 'NEEDS_REVIEW' ? 'waiting for reconciliation (may already be inside the old app total)' : t.status === 'UNKNOWN' ? 'unverified records are excluded' : 'excluded by settings'}` : rsum ? `Yes — net ${fmt(Ledger.netOf(L, t))} after refunds` : 'Yes';
     const inst = t.installed === true ? 'Installed' : t.installed === false ? 'Not installed' : unknown('Unknown');
     const kidsSum = kids.reduce((s, k) => s + (k.amount || 0), 0);
     const issues = Ledger.issues(L).filter((i) => i.id === t.id);
@@ -334,8 +336,8 @@
         ${t.kind === 'transaction' && !Ledger.isDuplicate(t) ? `<button class="btn sm" data-act="dup">Mark as duplicate</button>` : ''}
         ${Ledger.isDuplicate(t) ? `<button class="btn sm" data-act="undup">Not a duplicate</button>` : ''}
         ${t.kind === 'transaction' && !Ledger.isDuplicate(t) && rsum < (t.amount || 0) ? `<button class="btn sm" data-act="refund">Add refund</button>` : ''}
-        ${['NEEDS_REVIEW', 'UNVERIFIED'].includes(t.status) ? `<button class="btn sm" data-act="confirm">Mark confirmed</button>` : ''}
-        ${t.status === 'CONFIRMED' && !Ledger.isDuplicate(t) ? `<button class="btn sm ghost" data-act="review">Flag for review</button>` : ''}
+        ${t.kind === 'transaction' && ['NEEDS_REVIEW', 'UNKNOWN'].includes(t.status) ? `<button class="btn sm" data-act="included">Already in old app total</button><button class="btn sm" data-act="new">Confirm as new</button>` : ''}
+        ${Ledger.CONFIRMED.has(t.status) && !Ledger.isDuplicate(t) ? `<button class="btn sm ghost" data-act="review">Flag for review</button>` : ''}
         ${!t.verified ? `<button class="btn sm ghost" data-act="verify">Mark source verified</button>` : ''}
       </div>
       <div class="section-h section"><h2>Details</h2></div>
@@ -375,10 +377,11 @@
     const save = async (patch, msg) => { try { await Store.updateTx(Object.assign(raw(), patch, { id })); rebuild(); toast(msg); render(); } catch (e) { toast('Save failed: ' + e.message); } };
     $$('[data-act]').forEach((b) => b.onclick = () => {
       const a = b.dataset.act;
-      if (a === 'confirm') save({ status: 'CONFIRMED' }, 'Marked confirmed');
+      if (a === 'included') confirmSheet('Already inside the old app total?', `Choose this only if a bill or record shows this purchase is one of the unitemised entries behind your old app's ₹1,01,167. It will count in the total, and the "not yet itemised" gap will shrink by ${fmt(t.amount)}.`, () => save({ status: 'CONFIRMED_INCLUDED' }, 'Reconciled — inside old app total'));
+      if (a === 'new') confirmSheet('Confirm as a new expense?', `Choose this only if the purchase is definitely NOT part of your old app's ₹1,01,167. ${fmt(t.amount)} will be added to the confirmed total.`, () => save({ status: 'CONFIRMED_NEW' }, 'Confirmed as new — added to total'));
       if (a === 'review') save({ status: 'NEEDS_REVIEW' }, 'Flagged for review');
       if (a === 'verify') save({ verified: true }, 'Source marked verified');
-      if (a === 'undup') save({ status: 'CONFIRMED', duplicate_of: '', related: [t.related, t.duplicate_of ? 'was_duplicate_of:' + t.duplicate_of : ''].filter(Boolean).join(';') }, 'Restored — now counted');
+      if (a === 'undup') save({ status: 'NEEDS_REVIEW', duplicate_of: '', related: [t.related, t.duplicate_of ? 'was_duplicate_of:' + t.duplicate_of : ''].filter(Boolean).join(';') }, 'Restored — now waiting for review');
       if (a === 'dup') {
         const cands = Ledger.findDuplicates(L, t, { threshold: 25, limit: 8 }).filter((m) => m.id !== t.id && !L.children.get(t.id)?.some((k) => k.id === m.id));
         sheet(`<h3>Which record is this a duplicate of?</h3><p class="muted" style="margin:-6px 0 12px;font-size:13px">The chosen record stays counted. This one is kept for history but excluded from totals.</p>
@@ -407,7 +410,7 @@
   }
 
   // ── add / edit ──
-  function blankDraft() { return { expenditure: '', amount: '', date: todayISO(), notes: '', category: 'Fuel', subcategory: '', source: 'Manual', source_reference: '', order_reference: '', status: 'CONFIRMED', installed: '', odometer_km: '', parent_id: '', attachment_url: '', litres: '', fullTank: true }; }
+  function blankDraft() { return { expenditure: '', amount: '', date: todayISO(), notes: '', category: 'Fuel', subcategory: '', source: 'Manual', source_reference: '', order_reference: '', status: 'CONFIRMED_NEW', installed: '', odometer_km: '', parent_id: '', attachment_url: '', litres: '', fullTank: true }; }
   function viewAdd(editId) {
     const editing = editId ? L.byId.get(editId) : null;
     if (!state.draft || state.draft._for !== (editId || 'new')) {
@@ -431,7 +434,7 @@
           <div class="two"><label class="field"><span>Source</span><select class="input" name="source">${Ledger.SOURCES.map((s) => `<option ${s === d.source ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
           <label class="field"><span>Order number</span><input class="input" name="order_reference" value="${esc(d.order_reference)}" placeholder="#5597"/></label></div>
           <label class="field"><span>Source reference <em>· SKU, invoice no., app entry</em></span><input class="input" name="source_reference" value="${esc(d.source_reference)}"/></label>
-          <div class="two"><label class="field"><span>Status</span><select class="input" name="status">${['CONFIRMED', 'NEEDS_REVIEW', 'UNVERIFIED', 'CANCELLED'].concat(editing && editing.status === 'DUPLICATE' ? ['DUPLICATE'] : []).map((s) => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${STATUS_PILL[s][1]}</option>`).join('')}</select></label>
+          <div class="two"><label class="field"><span>Status</span><select class="input" name="status">${['CONFIRMED_NEW', 'CONFIRMED_INCLUDED', 'NEEDS_REVIEW', 'UNKNOWN', 'CANCELLED'].concat(editing && editing.status === 'DUPLICATE' ? ['DUPLICATE'] : []).map((s) => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${STATUS_PILL[s][1]}</option>`).join('')}</select></label>
           <label class="field"><span>Installed</span><select class="input" name="installed"><option value="" ${d.installed === '' ? 'selected' : ''}>Unknown</option><option value="true" ${d.installed === 'true' ? 'selected' : ''}>Yes</option><option value="false" ${d.installed === 'false' ? 'selected' : ''}>No</option></select></label></div>
           <div class="two"><label class="field"><span>Subcategory</span><input class="input" name="subcategory" value="${esc(d.subcategory)}"/></label>
           <label class="field"><span>Odometer km <em>· optional</em></span><input class="input num" name="odometer_km" inputmode="numeric" value="${esc(d.odometer_km)}"/></label></div>
@@ -512,12 +515,13 @@
       duplicates: { label: 'Duplicates', n: rc.duplicates, rows: tx.filter(Ledger.isDuplicate), empty: 'No duplicates recorded.' },
       refunded: { label: 'Refunded', n: rc.refunded + rc.partiallyRefunded, rows: tx.filter((t) => Ledger.refundStatus(L, t) !== 'NONE'), empty: 'No refunds.' },
       external: { label: 'Unverified sources', n: rc.unreconciledExternal, rows: tx.filter((t) => !Ledger.isDuplicate(t) && t.source !== 'Existing Expense App' && !t.verified), empty: 'Every external record is verified.' },
-      unverified: { label: 'Unverified', n: rc.unverified, rows: tx.filter((t) => t.status === 'UNVERIFIED'), empty: 'No unverified records.' },
+      unverified: { label: 'Unverified', n: rc.unverified, rows: tx.filter((t) => t.status === 'UNKNOWN'), empty: 'No unverified records.' },
       undated: { label: 'Undated', n: rc.undated, rows: tx.filter((t) => !Ledger.isDuplicate(t) && !t.date), empty: 'Every record has a date.' },
-      confirmed: { label: 'Confirmed', n: rc.confirmed, rows: tx.filter((t) => !Ledger.isDuplicate(t) && t.status === 'CONFIRMED' && Ledger.refundStatus(L, t) === 'NONE'), empty: '' },
+      confirmed: { label: 'In old app total', n: rc.confirmedIncluded, rows: tx.filter((t) => !Ledger.isDuplicate(t) && t.status === 'CONFIRMED_INCLUDED' && Ledger.refundStatus(L, t) === 'NONE'), empty: 'Nothing yet.' },
+      confirmedNew: { label: 'Confirmed new', n: rc.confirmedNew, rows: tx.filter((t) => !Ledger.isDuplicate(t) && t.status === 'CONFIRMED_NEW' && Ledger.refundStatus(L, t) === 'NONE'), empty: 'Nothing confirmed as new yet.' },
     };
     const cur = lists[state.reconFilter] || lists.needsReview;
-    const order = ['confirmed', 'needsReview', 'duplicates', 'refunded', 'external', 'unverified', 'undated'];
+    const order = ['confirmed', 'confirmedNew', 'needsReview', 'duplicates', 'refunded', 'unverified', 'external', 'undated'];
     return `<div class="view">${topbar('Reconcile')}
       <section class="card pad">
         <div class="label">Ledger</div>
@@ -525,8 +529,9 @@
           ${kvRow('Gross', `<span class="num">${fmt(T.gross)}</span>`)}
           ${kvRow('Refunds', `<span class="num">−${fmt(T.refunds).slice(1)}</span>`)}
           ${kvRow('Net total', `<b class="num">${fmt(T.net)}</b>`)}
+          ${T.pending ? kvRow('Waiting for review', `<span class="num" style="color:var(--warn)">${fmt(T.pending)}</span> <span class="muted">· not counted yet</span>`) : ''}
           ${kvRow('Duplicates kept aside', `<span class="num muted">${fmt(T.duplicates)}</span> <span class="muted">· not counted</span>`)}
-          ${T.excluded ? kvRow('Excluded by settings', `<span class="num muted">${fmt(T.excluded)}</span>`) : ''}
+          ${T.unknown ? kvRow('Unverified (not counted)', `<span class="num muted">${fmt(T.unknown)}</span>`) : ''}
         </dl>
       </section>
       <section class="card pad section" style="margin-top:10px">
@@ -536,7 +541,7 @@
           ${kvRow('Itemised here', `<span class="num">${fmt(B.imported)}</span>`)}
           ${kvRow('Not yet itemised', `<b class="num" style="color:${B.gap ? 'var(--warn)' : 'var(--good)'}">${fmt(B.gap)}</b>`)}
         </dl>
-        <p class="muted" style="font-size:12.5px;margin:12px 0 0">The gap is left as a gap on purpose. Import the older entries from your existing app and it will close by itself. The later items you added by hand (₹7,530) might overlap this gap, but that's not assumed.</p>
+        <p class="muted" style="font-size:12.5px;margin:12px 0 0">The gap is left as a gap on purpose. When a bill shows a pending item is one of those unitemised entries, open it and choose <b>Already in old app total</b>, and the gap shrinks. Importing the older entries from your old app closes it too. Nothing is assumed.</p>
       </section>
       <div class="recon-grid section">${order.map((k) => `<button class="stat card ${state.reconFilter === k ? 'active' : ''}" data-rf="${k}" style="text-align:left;cursor:pointer"><div class="label">${lists[k].label}</div><div class="v num">${lists[k].n}</div></button>`).join('')}</div>
       ${rc.issues.length ? `<div class="section-h section"><h2>Integrity checks</h2></div><div class="grid">${rc.issues.map((i) => `<a class="callout ${i.level === 'error' ? 'bad' : 'warn'}" href="#/e/${encodeURIComponent(i.id)}">${ic.warn}<span><b>${esc(L.byId.get(i.id)?.expenditure || i.id)}</b> — ${esc(i.msg)}</span></a>`).join('')}</div>` : `<div class="callout section" style="margin-top:14px">${ic.check}<span>All integrity checks pass. Line items match their orders, and every refund and duplicate link is valid.</span></div>`}
@@ -587,13 +592,13 @@
         ${Store.error ? `<div class="callout bad">${ic.warn}<span>Couldn't reach the Sheet: ${esc(Store.error)}. You're seeing this device's local copy, and edits save locally.</span></div>` : ''}
         <label class="field"><span>Vault key <em>· the VAULT_API_KEY from Vercel. Leave empty to keep data on this device only.</em></span><input class="input" id="key" type="password" value="${esc(Store.key)}" autocomplete="off"/></label>
         <div class="two"><button class="btn" id="savekey">${Store.key ? 'Update key' : 'Connect Sheet'}</button>${Store.key ? `<button class="btn ghost" id="forget">Use device only</button>` : '<span></span>'}</div>
-        ${Store.mode === 'cloud' && !Store.error ? `<button class="btn" id="import">Import known history into an empty Sheet</button><span class="muted" style="font-size:12px;margin-top:-6px">Refused automatically if the Sheet already has rows, so the history can't be counted twice.</span>` : ''}
+        <span class="muted" style="font-size:12px">Historical data is loaded from the backend with <code>node scripts/push.mjs</code>, not from this screen.</span>
       </section>
       <section class="card pad form section">
         <div class="label">Calculation</div>
         <label class="field"><span>Existing app reported total (₹)</span><input class="input num" id="baseline" inputmode="decimal" value="${esc(s.reportedBaseline)}"/></label>
-        <label class="check"><input type="checkbox" id="cu" ${s.countUnverified ? 'checked' : ''}/> Count unverified records in totals</label>
-        <label class="check"><input type="checkbox" id="cr" ${s.countNeedsReview ? 'checked' : ''}/> Count "needs review" records in totals</label>
+        <label class="check"><input type="checkbox" id="cr" ${s.countNeedsReview ? 'checked' : ''}/> Include "needs review" records in the total <span class="muted">(off = confirmed only)</span></label>
+        <label class="check"><input type="checkbox" id="cu" ${s.countUnverified ? 'checked' : ''}/> Include unverified records in the total</label>
       </section>
       <section class="card pad form section">
         <div class="label">Export & backup</div>
@@ -607,9 +612,6 @@
     $('#back').onclick = () => (history.length > 1 ? history.back() : (location.hash = '#/'));
     $('#savekey').onclick = async () => { Store.key = $('#key').value.trim(); ls.set('akx.key', Store.key); await Store.load(); rebuild(); toast(Store.error ? 'Could not connect — using local copy' : Store.key ? 'Connected to Google Sheet' : 'Using this device'); render(); };
     $('#forget') && ($('#forget').onclick = async () => { Store.key = ''; ls.set('akx.key', ''); await Store.load(); rebuild(); toast('Now saving on this device'); render(); });
-    $('#import') && ($('#import').onclick = () => confirmSheet('Import the known history into the Sheet?', 'This writes the transactions and refunds from this device into the Sheet. If the Sheet already has any rows, the import is refused.', async () => {
-      try { const local = ls.get(LOCAL_KEY, null) || SEED; const r = await Store.api('POST', { type: 'import', transactions: local.transactions, refunds: local.refunds, meta: { reportedBaseline: Store.settings.reportedBaseline } }); await Store.load(); rebuild(); toast(`Imported ${r.imported} records`); render(); } catch (e) { toast(e.message); }
-    }));
     $('#baseline').onchange = async (e) => { const v = Ledger.toPaise(e.target.value); if (v === null) { toast('Enter a number'); return; } await Store.setSetting('reportedBaseline', v / 100); rebuild(); toast('Baseline updated'); };
     $('#cu').onchange = async (e) => { await Store.setSetting('countUnverified', e.target.checked); rebuild(); toast('Updated'); };
     $('#cr').onchange = async (e) => { await Store.setSetting('countNeedsReview', e.target.checked); rebuild(); toast('Updated'); };
