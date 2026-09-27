@@ -1,0 +1,12 @@
+{
+  "name": "ak-expense",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Motorcycle ownership ledger — vanilla JS + Vercel function + Google Sheets",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

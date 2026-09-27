@@ -1,0 +1,15 @@
+# ── Secrets — NEVER push these ──
+.env
+.env.local
+.env.production
+
+# ── Node ──
+node_modules/
+npm-debug.log*
+
+# ── Vercel ──
+.vercel
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
