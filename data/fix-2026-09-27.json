@@ -1,0 +1,8 @@
+{
+  "mode": "upsert",
+  "description": "₹1 service on 6 Sep 2026 confirmed real (free service) — replace the placeholder remark",
+  "transactions": [
+    { "id": "ea-005", "status": "CONFIRMED_INCLUDED", "notes": "Full Service Done: No · Free service — ₹1 charge confirmed" }
+  ],
+  "refunds": []
+}
