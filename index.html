@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0a0b0d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Ixora" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Ledger</title>
+  <title>Ixora</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="manifest" href="manifest.webmanifest" />
   <style>
@@ -190,7 +191,9 @@
     .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
     .chart .tip { position: absolute; pointer-events: none; background: var(--surface-3); border: 1px solid var(--line-3); border-radius: 10px; padding: 7px 10px; font-size: 12px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); box-shadow: var(--shadow); opacity: 0; transition: opacity .1s; }
     .chart .tip b { display: block; font-size: 13.5px; }
-    .hbar { display: grid; grid-template-columns: 110px minmax(0,1fr) auto; gap: 10px; align-items: center; font-size: 13px; padding: 7px 0; }
+    .hbar { display: grid; grid-template-columns: 104px minmax(0,1fr) 92px; gap: 10px; align-items: center; font-size: 13px; padding: 7px 0; }
+    .hbar > .num { text-align: right; }
+    a.hbar:hover .t2 { color: var(--text); }
     .hbar .track { height: 8px; background: var(--surface-3); border-radius: 4px; overflow: hidden; }
     .hbar .track i { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
 
@@ -228,7 +231,7 @@
       .rail a.nav svg { width: 18px; height: 18px; }
       .rail .spacer { flex: 1; }
       .rail .add { margin-bottom: 14px; }
-      .top .brand { display: none; }
+      .top { display: none; }
       .top.mobile-only { display: none; }
       .thead { display: grid; grid-template-columns: minmax(0,1.3fr) 150px 120px minmax(0,1.5fr); gap: 16px; padding: 0 16px 8px; }
       .rows.table { gap: 0; background: linear-gradient(180deg, var(--surface), var(--bg-2)); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }

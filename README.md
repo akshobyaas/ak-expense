@@ -1,4 +1,4 @@
-# Ledger — Hunter 350 ownership & expense tracker
+# Ixora — Hunter 350 expense tracker (Akshobya A S)
 
 A premium, dark, mobile-first ledger for everything the bike costs, built the same way as [vault](https://github.com/akshobyaas/vault): **vanilla JS + one Vercel function + a Google Sheet you own**. There's no framework and no build step.
 

@@ -99,24 +99,27 @@
   const rebuild = () => { L = Ledger.build(Store.raw, Store.settings); };
 
   // ── nav ──
+  // Personalisation — shown in the header and on the home screen.
+  const BIKE = { name: 'Ixora', model: 'Royal Enfield Hunter 350', owner: 'Akshobya A S' };
   const NAV = [
-    { r: '', label: 'Overview', icon: ic.home },
+    { r: '', label: 'Home', icon: ic.home },
     { r: 'expenses', label: 'Expenses', icon: ic.list },
     { r: 'add', label: 'Add', icon: ic.plus, add: true },
-    { r: 'reconcile', label: 'Reconcile', icon: ic.shield },
     { r: 'analytics', label: 'Insights', icon: ic.chart },
+    { r: 'settings', label: 'More', icon: ic.gear },
   ];
   function renderNav(route) {
-    const active = (r) => (r === route || (r === 'expenses' && route === 'e')) ? 'active' : '';
+    const active = (r) => (r === route || (r === 'expenses' && route === 'e') || (r === 'settings' && route === 'reconcile')) ? 'active' : '';
     $('#tabbar').innerHTML = NAV.map((n) => n.add
       ? `<a href="#/add" class="tab-add" aria-label="Add expense">${n.icon}</a>`
       : `<a href="#/${n.r}" class="tab ${active(n.r)}">${n.icon}<span>${n.label}</span></a>`).join('');
     const rc = L ? Ledger.reconciliation(L) : null;
-    $('#rail').innerHTML = `<div class="brand"><div class="brand-mark">${logo}</div><div><h1>Ledger</h1><small>Hunter 350 · ownership</small></div></div>
+    $('#rail').innerHTML = `<div class="brand"><div class="brand-mark">${logo}</div><div><h1>${esc(BIKE.name)}</h1><small>Hunter 350 · ${esc(BIKE.owner)}</small></div></div>
       <a href="#/add" class="btn primary add">${ic.plus} Add expense</a>
-      ${NAV.filter((n) => !n.add).map((n) => `<a class="nav ${active(n.r)}" href="#/${n.r}">${n.icon}<span style="flex:1">${n.label}</span>${n.r === 'reconcile' && rc && rc.needsReview ? `<span class="pill warn">${rc.needsReview}</span>` : ''}</a>`).join('')}
+      ${NAV.filter((n) => !n.add && n.r !== 'settings').map((n) => `<a class="nav ${active(n.r)}" href="#/${n.r}">${n.icon}<span style="flex:1">${n.label}</span></a>`).join('')}
       <div class="spacer"></div>
-      <a class="nav ${active('settings')}" href="#/settings">${ic.gear}<span>Data & settings</span></a>
+      <a class="nav ${route === 'reconcile' ? 'active' : ''}" href="#/reconcile">${ic.shield}<span style="flex:1">Reconcile</span>${rc && rc.needsReview ? `<span class="pill warn">${rc.needsReview}</span>` : ''}</a>
+      <a class="nav ${route === 'settings' ? 'active' : ''}" href="#/settings">${ic.gear}<span>Data & settings</span></a>
       <div style="padding:10px 10px 0">${modePill()}</div>`;
   }
   function modePill() {
@@ -124,7 +127,7 @@
     if (Store.error) return `<span class="pill bad" title="${esc(Store.error)}"><span class="dot"></span>Sheet offline · local copy</span>`;
     return `<span class="pill"><span class="dot"></span>Saved on this device</span>`;
   }
-  const topbar = (title, right = '') => `<div class="top"><div class="brand"><div class="brand-mark">${logo}</div><div><h1>${esc(title)}</h1><small>Motorcycle ledger</small></div></div><div style="display:flex;gap:8px;align-items:center">${right}<a class="iconbtn" href="#/settings" aria-label="Data and settings">${ic.gear}</a></div></div>`;
+  const topbar = (title) => `<div class="top"><div class="brand"><div class="brand-mark">${logo}</div><div><h1>${esc(title || BIKE.name)}</h1><small>${title ? esc(BIKE.name) + ' · ' : ''}Hunter 350 · ${esc(BIKE.owner)}</small></div></div></div>`;
 
   // ── shared bits ──
   const STATUS_PILL = { CONFIRMED_INCLUDED: ['good', 'In old app total'], CONFIRMED_NEW: ['good', 'Confirmed new'], NEEDS_REVIEW: ['warn', 'Needs review'], DUPLICATE: ['info', 'Duplicate'], UNKNOWN: ['', 'Unverified'], CANCELLED: ['bad', 'Cancelled'], REFUNDED: ['bad', 'Refunded'], 'PARTIALLY REFUNDED': ['warn', 'Part refunded'] };
@@ -215,50 +218,46 @@
   ];
   function viewDashboard() {
     const T = Ledger.totals(L); const B = Ledger.baseline(L); const rc = Ledger.reconciliation(L);
-    const avg = Ledger.averageMonthly(L); const mon = Ledger.monthly(L); const latest = Ledger.latest(L); const fuel = Ledger.fuelStats(L);
+    const mon = Ledger.monthly(L); const fuel = Ledger.fuelStats(L);
     const rupees = Math.floor(T.net / 100), paise = T.net % 100;
     const big = fmt(rupees * 100) + (paise ? `<span class="paise">.${String(paise).padStart(2, '0')}</span>` : '');
     const groupVal = (g) => g.cats.reduce((s, c) => s + (T.byCategory[c] || 0), 0);
-    const tile = (label, v, sub, frac, href) => `<a class="stat card" ${href ? `href="${href}"` : ''}><div class="label">${label}</div><div class="v num">${v}</div><div class="s">${sub}</div>${frac !== null ? `<div class="bar"><i style="width:${Math.max(frac * 100, frac > 0 ? 2 : 0).toFixed(1)}%"></i></div>` : ''}</a>`;
-    const countIn = (cats) => L.transactions.filter((t) => cats.includes(t.category) && Ledger.counts(L, t)).length;
-    return `<div class="view">${topbar('Ledger')}
+    const groups = GROUPS.map((g) => ({ ...g, v: groupVal(g) })).filter((g) => g.v > 0).sort((a, b) => b.v - a.v);
+    const max = Math.max(...groups.map((g) => g.v), 1);
+    const thisMonth = todayISO().slice(0, 7);
+    const monthSpend = (mon.series.find((p) => p.month === thisMonth) || { value: 0 }).value;
+    const recent = Ledger.query(L, { sort: 'newest' }).filter((t) => t.date).slice(0, 5);
+    // Only interrupt the everyday view when something actually needs attention.
+    const attention = [];
+    if (T.pending) attention.push(`<b class="num">${fmt(T.pending)}</b> waiting for review (not in the total)`);
+    if (B.gap) attention.push(`<b class="num">${fmt(B.gap)}</b> of the old app total isn't itemised`);
+    if (rc.issues.length) attention.push(`${rc.issues.length} data check${rc.issues.length === 1 ? '' : 's'} failing`);
+    return `<div class="view">${topbar()}
       <div class="dash-cols"><div>
         <section class="card hero">
-          <div style="display:flex;justify-content:space-between;align-items:center"><span class="label">Confirmed ownership cost</span>${modePill()}</div>
+          <span class="label">Total spent on ${esc(BIKE.name)}</span>
           <div class="big num">${big}</div>
-          <div class="ledger-line num"><span>Gross <b>${fmt(T.gross)}</b></span><span>Refunds <b>−${fmt(T.refunds).slice(1)}</b></span></div>
-          ${T.pending ? `<a class="baseline" href="#/reconcile" style="border-top-style:solid">${ic.warn}<span><b class="num" style="color:var(--warn)">${fmt(T.pending)}</b> across ${rc.needsReview} record${rc.needsReview === 1 ? '' : 's'} is waiting for review and <b>isn't in this total</b>. ${B.gap === 0 ? "Your old app's total is now fully itemised, so these can only be new purchases — unless one is actually part of an itemised bill (e.g. the HRZ invoice)." : "Some of it may already be inside your old app's total."} Reconcile each one to add it.</span></a>` : ''}
-          ${B.gap ? `<a class="baseline" href="#/reconcile">${ic.info}<span>Your old app reports <b class="num" style="color:var(--text)">${fmt(B.reported)}</b>, but only ${fmt(B.imported)} of it is itemised here. The other <b class="num" style="color:var(--warn)">${fmt(B.gap)}</b> isn't itemised and isn't included in the total above.</span></a>` : ''}
-        </section>
-        <div class="grid g2 g3 section" style="margin-top:10px">
-          ${GROUPS.map((g) => tile(g.label, fmt(groupVal(g)), `${countIn(g.cats)} ${countIn(g.cats) === 1 ? 'entry' : 'entries'}`, T.net ? groupVal(g) / T.net : 0, `#/expenses?category=${encodeURIComponent(g.cats.join('|'))}`)).join('')}
-        </div>
-        <div class="grid g2 g4" style="margin-top:10px">
-          ${tile('Refunds', fmt(T.refunds), `${rc.refunded + rc.partiallyRefunded} transaction${rc.refunded + rc.partiallyRefunded === 1 ? '' : 's'}`, null, '#/expenses?refunded=yes')}
-          ${tile('Expenses', String(T.count), 'counted in the total', null, '#/expenses')}
-          ${tile('Avg / month', avg === null ? '—' : fmt(avg), mon.undated ? `excl. ${compact(mon.undated)} undated` : `${mon.series.length} months`, null, '#/analytics')}
-          ${tile('Latest', latest ? fmt(latest.amount) : '—', latest ? `${esc(latest.expenditure)} · ${fmtDate(latest.date)}` : 'none dated', null, latest ? `#/e/${encodeURIComponent(latest.id)}` : '')}
-        </div>
-      </div><div>
-        <section class="section" style="margin-top:0">
-          <div class="section-h" style="margin-top:14px"><h2>Monthly spend</h2><a href="#/analytics">Insights ›</a></div>
-          <div class="card pad">${chart(drawBar, mon.series, { height: 170 })}</div>
+          <div class="ledger-line num"><span>This month <b>${fmt(monthSpend)}</b></span><span><b>${T.count}</b> expenses</span>${T.refunds ? `<span>Refunds <b>${fmt(T.refunds)}</b></span>` : ''}</div>
+          ${attention.length ? `<a class="baseline" href="#/reconcile" style="border-top-style:solid">${ic.warn}<span>${attention.join(' · ')}. Tap to review.</span></a>` : ''}
         </section>
         <section class="section">
+          <div class="section-h"><h2>Where it went</h2><a href="#/analytics">More ›</a></div>
+          <div class="card pad" style="padding-top:8px;padding-bottom:8px">
+            ${groups.map((g) => `<a class="hbar" href="#/expenses?category=${encodeURIComponent(g.cats.join('|'))}"><span class="t2">${g.label}</span><span class="track"><i style="width:${(g.v / max * 100).toFixed(1)}%"></i></span><span class="num">${fmt(g.v)}</span></a>`).join('') || '<div class="empty">No expenses yet — tap + to add one.</div>'}
+          </div>
+        </section>
+      </div><div>
+        <section class="section dash-first">
+          <div class="section-h"><h2>Recent</h2><a href="#/expenses">All ›</a></div>
+          <div class="rows">${recent.map(rowHTML).join('') || '<div class="empty">Nothing yet.</div>'}</div>
+        </section>
+        ${fuel.fills ? `<section class="section">
           <div class="section-h"><h2>Fuel</h2><a href="#/expenses?category=Fuel">All fills ›</a></div>
           <div class="card pad grid g2" style="gap:14px">
             <div><div class="label">Avg price</div><div class="num" style="font-size:18px;font-weight:600;margin-top:4px">${fuel.avgPricePerLitre ? fmt(fuel.avgPricePerLitre) + '<span class="muted" style="font-size:13px"> /L</span>' : '—'}</div></div>
             <div><div class="label">Avg fill</div><div class="num" style="font-size:18px;font-weight:600;margin-top:4px">${fuel.avgLitresPerFill ?? '—'}<span class="muted" style="font-size:13px"> L</span></div></div>
-            <div><div class="label">Total fuel</div><div class="num" style="font-size:18px;font-weight:600;margin-top:4px">${fuel.litres ?? '—'}<span class="muted" style="font-size:13px"> L · ${fuel.fills} fills</span></div></div>
-            <div><div class="label">Cost / km</div><div style="font-size:12.5px;margin-top:6px" class="muted">${fuel.km ? fmt(Math.round(T.net / fuel.km)) : 'Add odometer readings to unlock'}</div></div>
           </div>
-        </section>
-        <section class="section">
-          <div class="section-h"><h2>Reconciliation</h2><a href="#/reconcile">Open ›</a></div>
-          <a class="card pad" href="#/reconcile" style="display:flex;flex-wrap:wrap;gap:8px">
-            <span class="pill good">${rc.confirmed} confirmed</span><span class="pill warn">${rc.needsReview} needs review</span><span class="pill info">${rc.duplicates} duplicates</span><span class="pill bad">${rc.refunded} refunded</span>${rc.unreconciledExternal ? `<span class="pill">${rc.unreconciledExternal} unverified sources</span>` : ''}${rc.undated ? `<span class="pill">${rc.undated} undated</span>` : ''}
-          </a>
-        </section>
+        </section>` : ''}
       </div></div></div>`;
   }
 
@@ -326,7 +325,7 @@
     const issues = Ledger.issues(L).filter((i) => i.id === t.id);
     return `<div class="view"><button class="back" id="back">${ic.back} Back</button>
       <section class="card detail-h">
-        <div style="display:flex;gap:8px;flex-wrap:wrap">${pill(ds)}${t.kind === 'line_item' ? '<span class="pill">Line item</span>' : ''}${t.verified ? '<span class="pill good">Verified</span>' : ''}</div>
+        ${!Ledger.CONFIRMED.has(ds) || t.kind === 'line_item' ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">${Ledger.CONFIRMED.has(ds) ? '' : pill(ds)}${t.kind === 'line_item' ? '<span class="pill">Part of an order</span>' : ''}</div>` : ''}
         <h2>${esc(t.expenditure)}</h2>
         <div class="muted" style="font-size:13.5px">${esc([t.source, t.order_reference ? '#' + t.order_reference : ''].filter(Boolean).join(' · '))}</div>
         <div class="amount num">${amountHTML(t)}</div>
@@ -335,12 +334,11 @@
       ${dupOf ? `<div class="callout info" style="margin-top:10px">${ic.info}<span>This record is a duplicate of the one below. It's kept for the audit trail and <b>isn't counted</b> in totals.</span></div>` : ''}
       <div class="actions">
         <a class="btn sm" href="#/edit/${encodeURIComponent(t.id)}">Edit</a>
-        ${t.kind === 'transaction' && !Ledger.isDuplicate(t) ? `<button class="btn sm" data-act="dup">Mark as duplicate</button>` : ''}
+
         ${Ledger.isDuplicate(t) ? `<button class="btn sm" data-act="undup">Not a duplicate</button>` : ''}
         ${t.kind === 'transaction' && !Ledger.isDuplicate(t) && rsum < (t.amount || 0) ? `<button class="btn sm" data-act="refund">Add refund</button>` : ''}
         ${t.kind === 'transaction' && ['NEEDS_REVIEW', 'UNKNOWN'].includes(t.status) ? `<button class="btn sm" data-act="included">Already in old app total</button><button class="btn sm" data-act="new">Confirm as new</button>` : ''}
-        ${Ledger.CONFIRMED.has(t.status) && !Ledger.isDuplicate(t) ? `<button class="btn sm ghost" data-act="review">Flag for review</button>` : ''}
-        ${!t.verified ? `<button class="btn sm ghost" data-act="verify">Mark source verified</button>` : ''}
+
       </div>
       <div class="section-h section"><h2>Details</h2></div>
       <dl class="card kv" style="margin:0">
@@ -348,14 +346,14 @@
         ${kvRow('Date', t.date ? fmtDate(t.date) : unknown('Unknown — not provided'))}
         ${kvRow('Notes', t.notes ? esc(t.notes) : unknown('—'))}
         ${kvRow('Category', esc(Ledger.categoryOf(L, t)) + (t.subcategory ? ` <span class="muted">· ${esc(t.subcategory)}</span>` : ''))}
-        ${kvRow('Counts in total', why)}
-        ${kvRow('Refund status', rsum ? `${Ledger.refundStatus(L, t) === 'FULL' ? 'Fully refunded' : 'Partially refunded'} · <span class="num">${fmt(rsum)}</span>` : 'None')}
-        ${kvRow('Installed', inst)}
+        ${counts && !rsum ? '' : kvRow('Counts in total', why)}
+        ${rsum ? kvRow('Refund', `${Ledger.refundStatus(L, t) === 'FULL' ? 'Fully refunded' : 'Partially refunded'} · <span class="num">${fmt(rsum)}</span>`) : ''}
+        ${t.installed === null ? '' : kvRow('Installed', inst)}
         ${t.odometer_km != null ? kvRow('Odometer', `<span class="num">${t.odometer_km.toLocaleString('en-IN')} km</span>`) : ''}
-        ${t.attachment_url ? kvRow('Attachment', `<a href="${esc(t.attachment_url)}" target="_blank" rel="noopener" style="color:var(--accent)">Open bill ↗</a>`) : kvRow('Attachment', unknown('None'))}
+        ${t.attachment_url ? kvRow('Bill', `<a href="${esc(t.attachment_url)}" target="_blank" rel="noopener" style="color:var(--accent)">Open bill ↗</a>`) : ''}
       </dl>
-      <div class="section-h section"><h2>Where this came from</h2></div>
-      <dl class="card kv" style="margin:0">
+      <details class="more section" style="margin-top:22px"><summary><span>Where this came from</span><span class="muted">${esc(t.source)}</span></summary>
+      <dl class="kv" style="margin:0">
         ${kvRow('Source', esc(t.source))}
         ${kvRow('Source reference', t.source_reference ? esc(t.source_reference) : unknown('—'))}
         ${kvRow('Order', t.order_reference ? '#' + esc(t.order_reference) : unknown('—'))}
@@ -364,6 +362,11 @@
         ${kvRow('Record id', `<span class="num muted" style="font-family:var(--mono);font-size:12.5px">${esc(t.id)}</span>`)}
         ${kvRow('Added', t.created_at ? esc(new Date(t.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })) : unknown('—'))}
       </dl>
+      <div class="actions" style="padding:0 14px 14px">
+        ${t.kind === 'transaction' && !Ledger.isDuplicate(t) ? `<button class="btn sm" data-act="dup">Mark as duplicate</button>` : ''}
+        ${Ledger.CONFIRMED.has(t.status) && !Ledger.isDuplicate(t) ? `<button class="btn sm ghost" data-act="review">Flag for review</button>` : ''}
+        ${!t.verified ? `<button class="btn sm ghost" data-act="verify">Mark source verified</button>` : ''}
+      </div></details>
       ${parent ? `<div class="section-h section"><h2>Parent transaction</h2></div><div class="card">${linkRow(parent, `${esc(parent.source)} · order total ${fmt(parent.amount)}`)}</div>` : ''}
       ${kids.length ? `<div class="section-h section"><h2>Line items</h2><span class="muted num" style="font-size:12.5px">${fmt(kidsSum)} ${kidsSum === t.amount ? '= order total ✓' : '≠ order total'}</span></div><div class="card">${kids.map((k) => linkRow(k, esc(k.notes || 'Supporting detail — not counted separately'))).join('')}</div>` : ''}
       ${dupOf ? `<div class="section-h section"><h2>Duplicate of</h2></div><div class="card">${linkRow(dupOf)}</div>` : ''}
@@ -587,8 +590,12 @@
   // ── settings / data ──
   function viewSettings() {
     const s = Store.settings;
-    return `<div class="view form-wrap"><button class="back" id="back">${ic.back} Back</button>
-      <h2 style="margin:0 0 16px;font-size:22px;font-weight:600;letter-spacing:-.02em">Data & settings</h2>
+    return `<div class="view form-wrap">${topbar('More')}
+      <section class="card">
+        <a class="linkrow" href="#/reconcile"><div class="l"><div>Reconcile</div><div class="sub">Sources, duplicates, refunds and data checks</div></div><div style="display:flex;align-items:center;gap:8px">${(() => { const r = Ledger.reconciliation(L); return r.needsReview || r.issues.length ? `<span class="pill warn">${r.needsReview + r.issues.length}</span>` : '<span class="pill good">All clear</span>'; })()}<span class="muted">${ic.chev}</span></div></a>
+        <div class="linkrow" style="cursor:default"><div class="l"><div>${esc(BIKE.name)}</div><div class="sub">${esc(BIKE.model)} · owned by ${esc(BIKE.owner)}</div></div></div>
+      </section>
+      <div class="section-h section"><h2>Data & settings</h2></div>
       <section class="card pad form">
         <div style="display:flex;justify-content:space-between;align-items:center"><div class="label">Storage</div>${modePill()}</div>
         ${Store.error ? `<div class="callout bad">${ic.warn}<span>Couldn't reach the Sheet: ${esc(Store.error)}. You're seeing this device's local copy, and edits save locally.</span></div>` : ''}
@@ -596,12 +603,11 @@
         <div class="two"><button class="btn" id="savekey">${Store.key ? 'Update key' : 'Connect Sheet'}</button>${Store.key ? `<button class="btn ghost" id="forget">Use device only</button>` : '<span></span>'}</div>
         <span class="muted" style="font-size:12px">Historical data is loaded from the backend with <code>node scripts/push.mjs</code>, not from this screen.</span>
       </section>
-      <section class="card pad form section">
-        <div class="label">Calculation</div>
+      <details class="more section" style="margin-top:14px"><summary><span>Advanced calculation</span><span class="muted">Old app total, review rules</span></summary><div class="inner">
         <label class="field"><span>Existing app reported total (₹)</span><input class="input num" id="baseline" inputmode="decimal" value="${esc(s.reportedBaseline)}"/></label>
-        <label class="check"><input type="checkbox" id="cr" ${s.countNeedsReview ? 'checked' : ''}/> Include "needs review" records in the total <span class="muted">(off = confirmed only)</span></label>
+        <label class="check"><input type="checkbox" id="cr" ${s.countNeedsReview ? 'checked' : ''}/> Include "needs review" records in the total</label>
         <label class="check"><input type="checkbox" id="cu" ${s.countUnverified ? 'checked' : ''}/> Include unverified records in the total</label>
-      </section>
+      </div></details>
       <section class="card pad form section">
         <div class="label">Export & backup</div>
         <div class="two"><button class="btn" id="csv">Export CSV</button><button class="btn" id="json">Export JSON</button></div>
@@ -611,7 +617,6 @@
   }
   function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
   function bindSettings() {
-    $('#back').onclick = () => (history.length > 1 ? history.back() : (location.hash = '#/'));
     $('#savekey').onclick = async () => { Store.key = $('#key').value.trim(); ls.set('akx.key', Store.key); await Store.load(); rebuild(); toast(Store.error ? 'Could not connect — using local copy' : Store.key ? 'Connected to Google Sheet' : 'Using this device'); render(); };
     $('#forget') && ($('#forget').onclick = async () => { Store.key = ''; ls.set('akx.key', ''); await Store.load(); rebuild(); toast('Now saving on this device'); render(); });
     $('#baseline').onchange = async (e) => { const v = Ledger.toPaise(e.target.value); if (v === null) { toast('Enter a number'); return; } await Store.setSetting('reportedBaseline', v / 100); rebuild(); toast('Baseline updated'); };
