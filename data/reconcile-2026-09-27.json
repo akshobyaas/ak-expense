@@ -1,0 +1,92 @@
+{
+  "mode": "upsert",
+  "description": "Reconcile all pending records as CONFIRMED_NEW; normalise legacy CONFIRMED status",
+  "transactions": [
+    {
+      "id": "ea-005",
+      "status": "CONFIRMED_INCLUDED",
+      "source_reference": "Existing app entry #5"
+    },
+    {
+      "id": "m-screen-guard",
+      "status": "CONFIRMED_NEW",
+      "notes": "₹600 + ₹200 · Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "m-screen-guard-1",
+      "status": "CONFIRMED_NEW",
+      "notes": "Component of ₹800 total"
+    },
+    {
+      "id": "m-screen-guard-2",
+      "status": "CONFIRMED_NEW",
+      "notes": "Component of ₹800 total"
+    },
+    {
+      "id": "m-visor",
+      "status": "CONFIRMED_NEW",
+      "notes": "Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "m-socks",
+      "status": "CONFIRMED_NEW",
+      "notes": "Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "m-mirrors-2",
+      "status": "CONFIRMED_NEW",
+      "notes": "Replaced after original mirrors broke — separate from the ₹1,300 originals; subject to final source verification · Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "m-sliders",
+      "status": "CONFIRMED_NEW",
+      "notes": "Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "m-bungee",
+      "status": "CONFIRMED_NEW",
+      "notes": "4 pieces · Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "lg-cap0110",
+      "status": "CONFIRMED_NEW",
+      "notes": "SKU CAP0110 · warranty 6 months · Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "r95-5597",
+      "status": "CONFIRMED_NEW",
+      "notes": "WELCOME5 · saved ₹104.90 · free shipping · Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "r95-5597-1",
+      "status": "CONFIRMED_NEW",
+      "notes": "Listed ₹899 · WELCOME5"
+    },
+    {
+      "id": "r95-5597-2",
+      "status": "CONFIRMED_NEW",
+      "notes": "Listed ₹1,199 · WELCOME5"
+    },
+    {
+      "id": "r95-5693",
+      "status": "CONFIRMED_NEW",
+      "notes": "Free shipping · Reconciled 27 Sep 2026 as new: old app total fully itemised (visible entries + HRZ invoice)"
+    },
+    {
+      "id": "r95-5693-1",
+      "status": "CONFIRMED_NEW",
+      "notes": ""
+    },
+    {
+      "id": "r95-5693-2",
+      "status": "CONFIRMED_NEW",
+      "notes": ""
+    },
+    {
+      "id": "r95-5693-3",
+      "status": "CONFIRMED_NEW",
+      "notes": ""
+    }
+  ],
+  "refunds": []
+}
