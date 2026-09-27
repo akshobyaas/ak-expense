@@ -68,6 +68,7 @@
       status: normStatus(t.status, t.source || 'Manual'),
       quantity: t.quantity === '' || t.quantity == null ? null : Number(t.quantity),
       listed_amount: toPaise(t.listed_amount),
+      place: t.place ? String(t.place).trim() : '', // where it was bought / filled, e.g. "Koorgally, Mysuru"
       verified: bool(t.verified) === true,
       installed: bool(t.installed), // true / false / null (unknown)
       duplicate_of: t.duplicate_of || null,
@@ -288,7 +289,7 @@
     if (!q.showDuplicates && q.status !== 'DUPLICATE') rows = rows.filter((t) => !isDuplicate(t));
     if (s) rows = rows.filter((t) => {
       const kids = (L.children.get(t.id) || []).map((k) => k.expenditure).join(' ');
-      return [t.expenditure, t.notes, t.source, t.source_reference, t.order_reference, t.category, kids].join(' ').toLowerCase().includes(s);
+      return [t.expenditure, t.notes, t.place, t.source, t.source_reference, t.order_reference, t.category, kids].join(' ').toLowerCase().includes(s);
     });
     if (q.category) { const cats = String(q.category).split('|'); rows = rows.filter((t) => cats.includes(t.category)); }
     if (q.source) rows = rows.filter((t) => t.source === q.source);
@@ -323,7 +324,7 @@
   function latest(L) { return query(L, { sort: 'newest' }).find((t) => counts(L, t) && t.date) || null; }
 
   // ── export ──
-  const CSV_COLS = ['id', 'kind', 'parent_id', 'expenditure', 'amount', 'refunded', 'net', 'counts_in_total', 'display_status', 'date', 'notes', 'category', 'subcategory', 'source', 'source_reference', 'order_reference', 'status', 'verified', 'installed', 'quantity', 'listed_amount', 'duplicate_of', 'related', 'odometer_km', 'attachment_url', 'created_at', 'updated_at'];
+  const CSV_COLS = ['id', 'kind', 'parent_id', 'expenditure', 'amount', 'refunded', 'net', 'counts_in_total', 'display_status', 'date', 'place', 'notes', 'category', 'subcategory', 'source', 'source_reference', 'order_reference', 'status', 'verified', 'installed', 'quantity', 'listed_amount', 'duplicate_of', 'related', 'odometer_km', 'attachment_url', 'created_at', 'updated_at'];
   function toCSV(L) {
     const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const lines = [CSV_COLS.join(',')];

@@ -22,7 +22,7 @@ ak-expense/
 
 ## Data model (Sheet tabs, auto-created on first import)
 
-**Transactions**: id, kind (`transaction` | `line_item`), parent_id, expenditure, amount, date (blank = unknown), notes, category, subcategory, source, source_reference, order_reference, status, verified, installed (blank = unknown), duplicate_of, related, odometer_km, attachment_url, created_at, updated_at, quantity, listed_amount
+**Transactions**: id, kind (`transaction` | `line_item`), parent_id, expenditure, amount, date (blank = unknown), notes, category, subcategory, source, source_reference, order_reference, status, verified, installed (blank = unknown), duplicate_of, related, odometer_km, attachment_url, created_at, updated_at, quantity, listed_amount, place (fuel stop, e.g. "Koorgally, Mysuru")
 
 **Refunds**: id, transaction_id, amount, date, notes, created_at
 

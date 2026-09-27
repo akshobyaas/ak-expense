@@ -124,7 +124,7 @@
   function item(t) {
     const kids = L.children.get(t.id) || [];
     const note = t.notes === t.expenditure ? '' : cleanNotes(t.notes).split(' · ')[0];
-    const sub = [t.date ? shortDate(t.date) : 'No date', kids.length ? `${kids.length} items` : note].filter(Boolean).join(' · ');
+    const sub = [t.date ? shortDate(t.date) : 'No date', kids.length ? `${kids.length} items` : note, t.place ? t.place.split(',')[0] : ''].filter(Boolean).join(' · ');
     const off = !Ledger.counts(L, t) || Ledger.displayStatus(L, t) === 'REFUNDED';
     return `<a class="item ${off ? 'off' : ''}" href="#/e/${encodeURIComponent(t.id)}">
       <span class="ico">${iconFor(Ledger.categoryOf(L, t))}</span>
@@ -257,6 +257,7 @@
       <div class="d-top"><span class="ico">${iconFor(Ledger.categoryOf(L, t))}</span><div><h1 class="d-name">${esc(t.expenditure)}</h1><div class="d-meta">${esc(cat)} · ${t.date ? longDate(t.date) : 'date not known'}</div></div></div>
       <div class="d-amt">${money(t.amount)}</div>
       ${Ledger.litresOf(t) && t.category === 'Fuel' ? `<div class="t2">${Ledger.litresOf(t)} L at <b style="color:var(--text)" class="num">${fmt(Math.round(t.amount / Ledger.litresOf(t)))}/L</b></div>` : ''}
+      ${t.place ? `<div class="t2" style="margin-top:4px;display:flex;gap:6px;align-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>${esc(t.place)}</div>` : ''}
       ${refunded ? `<div class="t2">Refunded ${fmt(refunded)} — counts as <b style="color:var(--text)">${fmt(Ledger.netOf(L, t))}</b></div>` : ''}
       ${ds === 'DUPLICATE' ? `<div class="t2">A second record of something already logged, so it isn't counted.</div>` : ''}
       ${pending ? `<div class="warn-card" style="margin-top:14px"><p>This one <b>isn't counted</b> in your total yet.</p><button class="btn sm primary" data-act="count">Count it</button></div>` : ''}
@@ -289,11 +290,17 @@
   }
 
   // ── Add / edit ──
-  function blank() { return { amount: '', category: 'Fuel', expenditure: '', date: todayISO(), notes: '', litres: '', full: true }; }
+  function blank() { return { amount: '', category: 'Fuel', expenditure: '', date: todayISO(), notes: '', litres: '', full: true, place: '' }; }
+  // Fuel stops you've used before, most-used first (so the usual one is one tap away).
+  function knownPlaces() {
+    const n = new Map();
+    for (const t of L.transactions) if (t.place && t.category === 'Fuel') n.set(t.place, (n.get(t.place) || 0) + 1);
+    return [...n].sort((a, b) => b[1] - a[1]).map(([p, c]) => ({ place: p, count: c }));
+  }
   function viewAdd(editId) {
     const editing = editId ? L.byId.get(editId) : null;
     if (!state.draft || state.draft._for !== (editId || 'new')) {
-      state.draft = editing ? { amount: editing.amount === null ? '' : String(Ledger.fromPaise(editing.amount)), category: editing.category, expenditure: editing.expenditure, date: editing.date || '', notes: cleanNotes(editing.notes), litres: '', full: true } : blank();
+      state.draft = editing ? { amount: editing.amount === null ? '' : String(Ledger.fromPaise(editing.amount)), category: editing.category, expenditure: editing.expenditure, date: editing.date || '', notes: cleanNotes(editing.notes), litres: '', full: true, place: editing.place || '' } : blank();
       state.draft._for = editId || 'new';
     }
     const d = state.draft; const fuel = d.category === 'Fuel' && !editing;
@@ -305,6 +312,9 @@
           <div class="field"><span>Fill</span><div class="seg"><button type="button" data-full="1" class="${d.full ? 'on' : ''}">Full</button><button type="button" data-full="0" class="${d.full ? '' : 'on'}">Partial</button></div></div></div>`
         : `<label class="field"><span>What was it?</span><input class="input" name="expenditure" placeholder="e.g. Chain lube" value="${esc(d.expenditure)}"/></label>`}
         <label class="field"><span>Date <button type="button" class="linkbtn" id="nodate">${d.date ? "Don't know" : 'Use today'}</button></span><input class="input" type="date" name="date" value="${esc(d.date)}"/></label>
+        ${d.category === 'Fuel' ? `<div class="field"><span>Place</span><input class="input" name="place" list="places" placeholder="e.g. Koorgally, Mysuru" value="${esc(d.place)}" autocomplete="off"/>
+          <datalist id="places">${knownPlaces().map((x) => `<option value="${esc(x.place)}">`).join('')}</datalist>
+          ${knownPlaces().length ? `<div class="chips" style="margin-top:2px">${knownPlaces().slice(0, 4).map((x) => `<button type="button" class="chip" data-place="${esc(x.place)}">${esc(x.place)}</button>`).join('')}</div>` : ''}</div>` : ''}
         ${fuel ? '' : `<label class="field"><span>Note</span><input class="input" name="notes" placeholder="Optional" value="${esc(d.notes)}"/></label>`}
         <div id="dup"></div>
         <button class="btn primary block" id="save">${editing ? 'Save' : 'Add expense'}</button>
@@ -316,6 +326,7 @@
     $('#back').onclick = () => { state.draft = null; goBack(); };
     f.addEventListener('input', () => { readForm(f); $('#dup').innerHTML = ''; });
     $$('[data-c]').forEach((b) => b.onclick = () => { readForm(f); state.draft.category = b.dataset.c; render(); });
+    $$('[data-place]').forEach((b) => b.onclick = () => { f.place.value = b.dataset.place; readForm(f); $$('[data-place]').forEach((x) => x.classList.toggle('on', x === b)); });
     $$('[data-full]').forEach((b) => b.onclick = () => { state.draft.full = b.dataset.full === '1'; $$('[data-full]').forEach((x) => x.classList.toggle('on', x === b)); });
     $('#nodate').onclick = () => { f.date.value = f.date.value ? '' : todayISO(); readForm(f); $('#nodate').textContent = f.date.value ? "Don't know" : 'Use today'; };
     const save = async (tx) => {
@@ -330,6 +341,7 @@
       const tx = Object.assign(base, {
         amount: Ledger.fromPaise(p), category: d.category, date: d.date || '',
         expenditure: isFuel ? 'Fuel' : d.expenditure,
+        place: d.category === 'Fuel' ? (d.place || '') : (base.place || ''),
         // hidden bookkeeping remarks are carried over on edit, never silently dropped
         notes: isFuel ? [Number.isFinite(litres) ? `${litres.toFixed(2)} L` : '', d.full ? 'Full tank' : 'Partial'].filter(Boolean).join(' — ') : [d.notes, ...(editing ? hiddenNotes(editing.notes) : [])].filter(Boolean).join(' · '),
       });
@@ -359,7 +371,7 @@
       <div class="chips" style="margin-top:22px">${['all', ...GROUPS.map((x) => x.label)].map((c) => `<button class="chip ${state.statCat === c ? 'on' : ''}" data-s="${esc(c)}">${c === 'all' ? 'All' : esc(c)}</button>`).join('')}</div>
       ${chart(drawBar, mon.series)}
       ${mon.undated ? `<p class="sentence" style="font-size:13.5px">${fmt(mon.undated)} has no date, so it isn't in the chart.</p>` : ''}
-      ${g && g.label === 'Fuel' && fuel.fills ? `<div class="card" style="margin-top:18px"><div class="kv"><span>Fills</span><span class="num">${fuel.fills}</span></div><div class="kv"><span>Petrol</span><span class="num">${fuel.litres} L</span></div><div class="kv"><span>Average price</span><span class="num">${fmt(fuel.avgPricePerLitre)}/L</span></div><div class="kv"><span>Average fill</span><span class="num">${fuel.avgLitresPerFill} L</span></div></div>` : ''}
+      ${g && g.label === 'Fuel' && fuel.fills ? `<div class="card" style="margin-top:18px"><div class="kv"><span>Fills</span><span class="num">${fuel.fills}</span></div><div class="kv"><span>Petrol</span><span class="num">${fuel.litres} L</span></div><div class="kv"><span>Average price</span><span class="num">${fmt(fuel.avgPricePerLitre)}/L</span></div><div class="kv"><span>Average fill</span><span class="num">${fuel.avgLitresPerFill} L</span></div>${knownPlaces().slice(0, 3).map((x, i) => `<div class="kv"><span>${i ? '' : 'Where you fill up'}</span><span>${esc(x.place)} <span class="muted num">× ${x.count}</span></span></div>`).join('')}</div>` : ''}
       <h2 class="sec">Running total <span class="muted num" style="font-weight:400;font-size:14px">${cum.series.length ? fmt(cum.series.at(-1).value) + (cum.undated ? ' + ' + fmt(cum.undated) + ' undated' : '') : ''}</span></h2>
       ${chart(drawLine, cum.series)}
     </div>`;

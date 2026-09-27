@@ -23,7 +23,7 @@ async function safeFetch(url, opts = {}) {
 
 const TX_COLS = ['id', 'kind', 'parent_id', 'expenditure', 'amount', 'date', 'notes', 'category', 'subcategory', 'source',
   'source_reference', 'order_reference', 'status', 'verified', 'installed', 'duplicate_of', 'related', 'odometer_km',
-  'attachment_url', 'created_at', 'updated_at', 'quantity', 'listed_amount'];
+  'attachment_url', 'created_at', 'updated_at', 'quantity', 'listed_amount', 'place'];
 const RF_COLS = ['id', 'transaction_id', 'amount', 'date', 'notes', 'created_at'];
 const META_COLS = ['key', 'value'];
 const colLetter = (n) => String.fromCharCode(64 + n); // ≤ 26 columns (Transactions uses 23)
@@ -175,6 +175,8 @@ module.exports = async function handler(req, res) {
       if (body.type === 'transactions') {
         const err = validateTx(item); if (err) return res.status(400).json({ error: err });
         if (await findRow(cfg, item.id) > 0) return res.status(409).json({ error: 'id already exists' });
+        // keep the header row in step with the columns (adds new ones like "place" to older sheets)
+        await safeFetch(`${base}/values/${encodeURIComponent(`${cfg.name}!A1:${lastCol(cfg)}1`)}?valueInputOption=RAW`, { method: 'PUT', headers: auth, body: JSON.stringify({ values: [cfg.cols] }) });
         item.created_at = now; item.updated_at = now;
       } else {
         if (!item.transaction_id || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0) return res.status(400).json({ error: 'transaction_id and a positive amount required' });
