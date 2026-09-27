@@ -203,3 +203,12 @@ test('fuel stats only from real data; no odometer → no km metrics', () => {
   assert.equal(f.km, null);
   assert.ok(f.avgPricePerLitre > 9000 && f.avgPricePerLitre < 12000);
 });
+
+test('deleting an order removes its line items and refunds; deleting an original removes its duplicate copies', () => {
+  const L = L0();
+  assert.deepEqual([...Ledger.deletionSet(L, 'r95-5597')].sort(), ['r95-5597', 'r95-5597-1', 'r95-5597-2']);
+  assert.deepEqual([...Ledger.deletionSet(L, SEED.ids.JACKET)].sort(), [SEED.ids.JACKET, 'm-jacket'].sort());
+  const gone = Ledger.deletionSet(L, 'r95-5771');
+  const raw = clone(SEED); raw.transactions = raw.transactions.filter((t) => !gone.has(t.id)); raw.refunds = raw.refunds.filter((r) => !gone.has(r.transaction_id));
+  assert.equal(Ledger.issues(Ledger.build(raw)).filter((e) => e.level === 'error').length, 0);
+});

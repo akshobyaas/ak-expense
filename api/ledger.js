@@ -11,8 +11,8 @@
 // POST   { type:'upload', filename, mimeType, data } → Drive upload for invoices/screenshots
 // PUT    { type:'transactions'|'meta', item } → update row by id / key
 //
-// There is intentionally NO delete endpoint: records are never removed, only re-statused
-// (e.g. DUPLICATE) so the audit trail survives.
+// DELETE ?id=<transaction id>                → removes that expense for good, together with its
+//                                            line items, its refunds and any duplicate copies of it.
 
 async function safeFetch(url, opts = {}) {
   const res = await fetch(url, opts);
@@ -52,7 +52,7 @@ module.exports = async function handler(req, res) {
   const origin = req.headers.origin;
   res.setHeader('Access-Control-Allow-Origin', (ALLOWED_ORIGIN && origin === ALLOWED_ORIGIN) ? origin : (ALLOWED_ORIGIN || 'null'));
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Vault-Key');
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
@@ -182,6 +182,27 @@ module.exports = async function handler(req, res) {
       }
       await append(cfg, [toRow(cfg, item)]);
       return res.status(200).json({ success: true, item });
+    }
+
+    // ── DELETE ── (you asked for a real delete: rows are removed from the sheet)
+    if (req.method === 'DELETE') {
+      const id = String(req.query.id || '');
+      if (!id) return res.status(400).json({ error: 'id required' });
+      const [txs, rfs] = await Promise.all([read(TABS.transactions), read(TABS.refunds)]);
+      if (!txs.some((t) => t.id === id)) return res.status(404).json({ error: 'Not found' });
+      // the expense + its order lines + duplicate copies of it (and their lines)
+      const gone = new Set([id]);
+      let grew = true;
+      while (grew) { grew = false; for (const t of txs) if (!gone.has(t.id) && (gone.has(t.parent_id) || gone.has(t.duplicate_of))) { gone.add(t.id); grew = true; } }
+      const txRows = txs.map((t, i) => (gone.has(t.id) ? i + 2 : 0)).filter(Boolean);
+      const rfRows = rfs.map((r, i) => (gone.has(r.transaction_id) ? i + 2 : 0)).filter(Boolean);
+      const { data: meta } = await safeFetch(`${base}?fields=sheets.properties(sheetId,title)`, { headers: auth });
+      const sid = (name) => (meta.sheets || []).find((x) => x.properties.title === name)?.properties.sheetId;
+      const del = (sheetId, rows) => rows.sort((a, b) => b - a).map((r) => ({ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: r - 1, endIndex: r } } }));
+      const requests = [...del(sid(TABS.transactions.name), txRows), ...(rfRows.length ? del(sid(TABS.refunds.name), rfRows) : [])];
+      const { data: d } = await safeFetch(`${base}:batchUpdate`, { method: 'POST', headers: auth, body: JSON.stringify({ requests }) });
+      if (d.error) throw new Error(d.error.message);
+      return res.status(200).json({ success: true, deleted: [...gone], refundsDeleted: rfRows.length });
     }
 
     // ── PUT ──

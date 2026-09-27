@@ -313,6 +313,13 @@
     return rows;
   }
 
+  // Everything that goes when an expense is deleted: its order lines and duplicate copies (same rule as the API).
+  function deletionSet(L, id) {
+    const gone = new Set([String(id)]); let grew = true;
+    while (grew) { grew = false; for (const t of L.transactions) if (!gone.has(t.id) && (gone.has(t.parent_id) || gone.has(t.duplicate_of))) { gone.add(t.id); grew = true; } }
+    return gone;
+  }
+
   function latest(L) { return query(L, { sort: 'newest' }).find((t) => counts(L, t) && t.date) || null; }
 
   // ── export ──
@@ -334,6 +341,6 @@
     CATEGORIES, SOURCES, STATUSES, CONFIRMED, EXISTING_APP, DEFAULT_SETTINGS, normStatus, inBaseline,
     toPaise, fromPaise, formatINR, normTx, build, refundTotal, refundStatus, isDuplicate, counts, netOf,
     displayStatus, categoryOf, totals, baseline, monthly, cumulative, averageMonthly, litresOf, fuelStats,
-    findDuplicates, issues, reconciliation, query, latest, toCSV,
+    findDuplicates, issues, reconciliation, query, latest, toCSV, deletionSet,
   };
 });
