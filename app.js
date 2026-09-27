@@ -131,8 +131,8 @@
       <span style="min-width:0"><div class="name">${esc(t.expenditure)}</div><div class="sub">${esc(sub)}</div></span>
       <span class="amt num">${amountCell(t)}</span></a>`;
   }
-  function groupedList(rows) {
-    if (!rows.length) return `<div class="empty">Nothing here yet.</div>`;
+  function groupedList(rows, searching) {
+    if (!rows.length) return `<div class="empty">${searching ? 'No matches.' : 'Nothing here yet.'}</div>`;
     const groups = new Map();
     for (const t of rows) { const k = t.date ? t.date.slice(0, 7) : 'none'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); }
     return [...groups].map(([k, ts]) => {
@@ -198,7 +198,7 @@
     const T = Ledger.totals(L), B = Ledger.baseline(L), rc = Ledger.reconciliation(L), mon = Ledger.monthly(L), fuel = Ledger.fuelStats(L);
     const thisMonth = (mon.series.find((p) => p.month === todayISO().slice(0, 7)) || { value: 0 }).value;
     const first = mon.series[0];
-    const cats = GROUPS.map((g) => ({ ...g, v: g.cats.reduce((s, c) => s + (T.byCategory[c] || 0), 0) })).filter((g) => g.v > 0).sort((a, b) => b.v - a.v);
+    const cats = GROUPS.map((g) => ({ ...g, v: g.cats.reduce((s, c) => s + (T.byCategory[c] || 0), 0), n: L.transactions.filter((t) => g.cats.includes(t.category) && Ledger.counts(L, t)).length })).filter((g) => g.v > 0).sort((a, b) => b.v - a.v);
     const max = Math.max(...cats.map((c) => c.v), 1);
     const recent = Ledger.query(L, { sort: 'newest' }).filter((t) => t.date).slice(0, 5);
     const needs = [];
@@ -213,27 +213,35 @@
         ${needs.length ? `<a class="note" href="#/check">${ic.alert.replace('<svg', '<svg width="18" height="18" style="flex:none;color:var(--warn)"')}<span>${needs.join(' · ')}. Tap to sort it out.</span></a>` : ''}
       </section>
       <h2 class="sec">Where it went</h2>
-      ${cats.map((c) => `<a class="cat" href="#/expenses?cat=${encodeURIComponent(c.label)}"><span class="ico">${iconFor(c.icon)}</span><span><span>${c.label}</span><span class="pct num">${Math.round((c.v / T.net) * 100)}%</span><div class="bar"><i style="width:${((c.v / max) * 100).toFixed(1)}%"></i></div></span><span class="num">${fmt(c.v)}</span></a>`).join('') || `<div class="empty">Tap + to log your first expense.</div>`}
-      ${fuel.avgPricePerLitre ? `<p class="sentence">Petrol has averaged <b class="num">${fmt(fuel.avgPricePerLitre)}/L</b>, about <b class="num">${fuel.avgLitresPerFill} L</b> a fill.</p>` : ''}
+      ${cats.map((c) => `<a class="cat" href="#/expenses?cat=${encodeURIComponent(c.label)}"><span class="ico">${iconFor(c.icon)}</span><span><span>${c.label}</span><span class="pct num">${Math.round((c.v / T.net) * 100)}% · ${c.n}</span><div class="bar"><i style="width:${((c.v / max) * 100).toFixed(1)}%"></i></div></span><span class="num">${fmt(c.v)}</span></a>`).join('') || `<div class="empty">Tap + to log your first expense.</div>`}
+      ${fuel.avgPricePerLitre ? `<p class="sentence"><b class="num">${fuel.fills}</b> fills, <b class="num">${fuel.litres} L</b> of petrol at about <b class="num">${fmt(fuel.avgPricePerLitre)}/L</b> — roughly <b class="num">${fuel.avgLitresPerFill} L</b> a fill.</p>` : ''}
       <h2 class="sec">Recent <a href="#/expenses">See all</a></h2>
       <div class="list">${recent.map(item).join('') || '<div class="empty">Nothing yet.</div>'}</div>
     </div>`;
   }
 
   // ── Expenses ──
+  const filtered = () => { const g = GROUPS.find((x) => x.label === state.cat); return Ledger.query(L, { search: state.q, category: g ? g.cats.join('|') : '', sort: 'newest' }); };
+  // "Fuel · 38 entries · ₹31,319" — the total always matches what's on screen.
+  function listSummary(rows) {
+    const total = rows.reduce((s, t) => s + (Ledger.counts(L, t) ? Ledger.netOf(L, t) : 0), 0);
+    const cat = state.cat === 'all' ? '' : state.cat;
+    const label = state.q ? `“${state.q}”${cat ? ' in ' + cat : ''}` : cat || 'All';
+    return `<span>${esc(label)} · ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span><b class="num">${fmt(total)}</b>`;
+  }
   function viewExpenses(params) {
     if (params.cat) state.cat = params.cat;
-    const g = GROUPS.find((x) => x.label === state.cat);
-    const rows = Ledger.query(L, { search: state.q, category: g ? g.cats.join('|') : '', sort: 'newest' });
-    return `<div class="view">${head('Expenses', `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}`)}
+    const rows = filtered();
+    return `<div class="view">${head('Expenses')}
+      <div class="summary" id="sum">${listSummary(rows)}</div>
       <label class="search">${ic.search.replace('<svg', '<svg width="18" height="18"')}<input id="q" type="search" placeholder="Search" value="${esc(state.q)}" autocomplete="off"/></label>
       <div class="chips">${['all', ...GROUPS.map((x) => x.label)].map((c) => `<button class="chip ${state.cat === c ? 'on' : ''}" data-cat="${esc(c)}">${c === 'all' ? 'All' : esc(c)}</button>`).join('')}</div>
-      <div id="rows">${groupedList(rows)}</div>
+      <div id="rows">${groupedList(rows, !!state.q)}</div>
     </div>`;
   }
   function bindExpenses() {
     const q = $('#q'); let tm;
-    q.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { state.q = q.value; const g = GROUPS.find((x) => x.label === state.cat); $('#rows').innerHTML = groupedList(Ledger.query(L, { search: state.q, category: g ? g.cats.join('|') : '', sort: 'newest' })); }, 120); });
+    q.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { state.q = q.value.trim(); const rows = filtered(); $('#rows').innerHTML = groupedList(rows, !!state.q); $('#sum').innerHTML = listSummary(rows); }, 120); });
     $$('[data-cat]').forEach((b) => b.onclick = () => { state.cat = b.dataset.cat; if (location.hash !== '#/expenses') location.hash = '#/expenses'; else render(); });
   }
 
@@ -248,6 +256,7 @@
     return `<div class="view">${backBtn()}
       <div class="d-top"><span class="ico">${iconFor(Ledger.categoryOf(L, t))}</span><div><h1 class="d-name">${esc(t.expenditure)}</h1><div class="d-meta">${esc(cat)} · ${t.date ? longDate(t.date) : 'date not known'}</div></div></div>
       <div class="d-amt">${money(t.amount)}</div>
+      ${Ledger.litresOf(t) && t.category === 'Fuel' ? `<div class="t2">${Ledger.litresOf(t)} L at <b style="color:var(--text)" class="num">${fmt(Math.round(t.amount / Ledger.litresOf(t)))}/L</b></div>` : ''}
       ${refunded ? `<div class="t2">Refunded ${fmt(refunded)} — counts as <b style="color:var(--text)">${fmt(Ledger.netOf(L, t))}</b></div>` : ''}
       ${ds === 'DUPLICATE' ? `<div class="t2">A second record of something already logged, so it isn't counted.</div>` : ''}
       ${pending ? `<div class="warn-card" style="margin-top:14px"><p>This one <b>isn't counted</b> in your total yet.</p><button class="btn sm primary" data-act="count">Count it</button></div>` : ''}
@@ -342,12 +351,16 @@
     const mon = Ledger.monthly(L, g ? (t) => g.cats.includes(t.category) : null);
     const avg = mon.series.length ? Math.round(mon.series.reduce((s, p) => s + p.value, 0) / mon.series.length) : 0;
     const cum = Ledger.cumulative(L);
+    const inCat = L.transactions.filter((t) => Ledger.counts(L, t) && (!g || g.cats.includes(t.category)));
+    const tot = inCat.reduce((s, t) => s + Ledger.netOf(L, t), 0), n = inCat.length;
+    const fuel = Ledger.fuelStats(L);
     return `<div class="view">${head('Stats', BIKE.name)}
-      <div class="hero"><div class="k">${g ? esc(g.label) + ' — about' : 'About'}</div><div class="big" style="font-size:44px">${money(Math.round(avg / 100) * 100)}</div><div class="sub">a month on average</div></div>
+      <div class="hero"><div class="k">${g ? esc(g.label) + ' — about' : 'About'}</div><div class="big" style="font-size:44px">${money(Math.round(avg / 100) * 100)}</div><div class="sub">a month on average · <b class="num">${fmt(tot)}</b> in total over ${n} ${n === 1 ? 'entry' : 'entries'}</div></div>
       <div class="chips" style="margin-top:22px">${['all', ...GROUPS.map((x) => x.label)].map((c) => `<button class="chip ${state.statCat === c ? 'on' : ''}" data-s="${esc(c)}">${c === 'all' ? 'All' : esc(c)}</button>`).join('')}</div>
       ${chart(drawBar, mon.series)}
       ${mon.undated ? `<p class="sentence" style="font-size:13.5px">${fmt(mon.undated)} has no date, so it isn't in the chart.</p>` : ''}
-      <h2 class="sec">Running total</h2>
+      ${g && g.label === 'Fuel' && fuel.fills ? `<div class="card" style="margin-top:18px"><div class="kv"><span>Fills</span><span class="num">${fuel.fills}</span></div><div class="kv"><span>Petrol</span><span class="num">${fuel.litres} L</span></div><div class="kv"><span>Average price</span><span class="num">${fmt(fuel.avgPricePerLitre)}/L</span></div><div class="kv"><span>Average fill</span><span class="num">${fuel.avgLitresPerFill} L</span></div></div>` : ''}
+      <h2 class="sec">Running total <span class="muted num" style="font-weight:400;font-size:14px">${cum.series.length ? fmt(cum.series.at(-1).value) + (cum.undated ? ' + ' + fmt(cum.undated) + ' undated' : '') : ''}</span></h2>
       ${chart(drawLine, cum.series)}
     </div>`;
   }
