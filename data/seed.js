@@ -107,6 +107,11 @@
   // Mentioned again manually — same purchase as the existing-app entry. Kept for audit, excluded from totals.
   tx({ id: 'm-jacket', expenditure: 'Riding jacket + pants', amount: 15900, date: null, notes: 'Manual mention of the same purchase', category: 'Riding Gear', source: 'Manual', status: 'DUPLICATE', duplicate_of: JACKET });
 
+  // ── HRZ invoice — the old app's unitemised remainder ──
+  // You identified the entries behind the ₹8,498 gap (₹1,01,167 − ₹92,669 itemised) as one HRZ invoice.
+  // One record, inside the baseline. Invoice not attached yet; date and category not stated.
+  tx({ id: 'hrz-invoice', expenditure: 'HRZ invoice', amount: 8498, date: null, notes: 'Unitemised part of the old app total (₹1,01,167 − ₹92,669 itemised), identified as the HRZ invoice · invoice not attached', category: 'Other', source: 'Manual', source_reference: 'HRZ invoice', status: 'CONFIRMED_INCLUDED' });
+
   // ── Legundary ──
   tx({ id: 'lg-cap0110', expenditure: 'Interceptor rear brake fluid cap SS', amount: 590, date: null, notes: 'SKU CAP0110 · warranty 6 months · Needs reconciliation — may already be inside the ₹1,01,167 baseline', category: 'Modification', source: 'Legundary', source_reference: 'SKU CAP0110', installed: true, quantity: 1 });
   tx({ id: 'lg-bash', expenditure: 'Bash Plate + Crash Guard + Top Rack', amount: 9200, date: null, notes: 'Legundary record of the purchase already in the existing app', category: 'Accessories', source: 'Legundary', status: 'DUPLICATE', duplicate_of: BASH });

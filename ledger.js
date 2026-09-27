@@ -251,6 +251,8 @@
       if (r > (t.amount || 0)) out.push({ id: t.id, level: 'error', msg: `refunds (${formatINR(r)}) exceed amount (${formatINR(t.amount)})` });
       if (t.status === 'CANCELLED' && refundStatus(L, t) !== 'FULL') out.push({ id: t.id, level: 'warn', msg: 'cancelled but not fully refunded — still counts toward total' });
     }
+    const B = baseline(L);
+    if (B.gap !== null && B.gap < 0) out.push({ id: '__baseline__', level: 'error', msg: `records marked as inside the old app total add up to ${formatINR(-B.gap)} more than the ₹ total it reports — one of them is probably new, not included` });
     for (const [pid, kids] of L.children) {
       const p = L.byId.get(pid); if (!p || p.amount === null) continue;
       const sum = kids.reduce((s, k) => s + (k.amount || 0), 0);
@@ -282,6 +284,8 @@
   function query(L, q = {}) {
     const s = (q.search || '').toLowerCase().trim();
     let rows = L.transactions.filter((t) => t.kind === (q.kind || 'transaction'));
+    // Duplicates are kept for audit but hidden from the list unless asked for.
+    if (!q.showDuplicates && q.status !== 'DUPLICATE') rows = rows.filter((t) => !isDuplicate(t));
     if (s) rows = rows.filter((t) => {
       const kids = (L.children.get(t.id) || []).map((k) => k.expenditure).join(' ');
       return [t.expenditure, t.notes, t.source, t.source_reference, t.order_reference, t.category, kids].join(' ').toLowerCase().includes(s);

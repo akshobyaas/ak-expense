@@ -19,20 +19,35 @@ test('seed: 54 existing-app entries summing to ₹92,669', () => {
 
 test('seed: confirmed net excludes everything still needing reconciliation (audit §17)', () => {
   const t = Ledger.totals(L0());
-  // 54 existing-app entries (₹92,669) minus the ₹1 placeholder under review; #5771 nets to ₹0
-  assert.equal(t.net, P(92668));
+  // 54 existing-app entries (₹92,669) minus the ₹1 placeholder under review, plus the ₹8,498 HRZ invoice; #5771 nets to ₹0
+  assert.equal(t.net, P(92668 + 8498));
   assert.equal(t.refunds, P(1469));
   assert.equal(t.duplicates, P(15900 + 9200));
   // manual ₹7,530 + Route95 ₹1,993.10 + ₹2,597 + ₹1 placeholder — reported beside the total, not in it
   assert.equal(t.pending, P(12121.10));
 });
 
-test('seed: if every pending item is reconciled as real, net is ₹1,04,789.10', () => {
-  assert.equal(Ledger.totals(L0(ALL)).net, P(104789.10));
+test('seed: if every pending item is reconciled as real, net is ₹1,13,287.10', () => {
+  assert.equal(Ledger.totals(L0(ALL)).net, P(104789.10 + 8498));
+});
+
+test('HRZ invoice closes the baseline gap exactly and is labelled as user-identified, not derived', () => {
+  const L = L0(); const h = L.byId.get('hrz-invoice');
+  assert.equal(h.status, 'CONFIRMED_INCLUDED');
+  assert.equal(h.date, null);
+  assert.match(h.notes, /identified as the HRZ invoice/);
+  assert.equal(Ledger.baseline(L).gap, 0);
+});
+
+test('marking items as inside the old app total beyond what it reports is flagged', () => {
+  const raw = clone(SEED); raw.transactions.find((t) => t.id === 'm-sliders').status = 'CONFIRMED_INCLUDED';
+  const errs = Ledger.issues(Ledger.build(raw));
+  assert.ok(errs.some((e) => e.id === '__baseline__' && e.level === 'error'));
 });
 
 test('reconciling a pending item as CONFIRMED_INCLUDED shrinks the baseline gap instead of adding twice', () => {
-  const raw = clone(SEED); raw.transactions.find((t) => t.id === 'm-sliders').status = 'CONFIRMED_INCLUDED';
+  const raw = clone(SEED); raw.transactions = raw.transactions.filter((t) => t.id !== 'hrz-invoice');
+  raw.transactions.find((t) => t.id === 'm-sliders').status = 'CONFIRMED_INCLUDED';
   const L = Ledger.build(raw);
   assert.equal(Ledger.baseline(L).gap, P(8498 - 1690));
   assert.equal(Ledger.totals(L).net, P(92668 + 1690));
@@ -114,7 +129,9 @@ test('TEST 7: duplicates remain visible but do not count', () => {
   const L = L0(); const d = L.byId.get('m-jacket');
   assert.ok(d);
   assert.equal(Ledger.counts(L, d), false);
-  assert.ok(Ledger.query(L, { search: 'jacket' }).some((t) => t.id === 'm-jacket'));
+  assert.ok(!Ledger.query(L, { search: 'jacket' }).some((t) => t.id === 'm-jacket'), 'hidden from the list by default');
+  assert.ok(Ledger.query(L, { search: 'jacket', showDuplicates: true }).some((t) => t.id === 'm-jacket'));
+  assert.ok(Ledger.query(L, { status: 'DUPLICATE' }).some((t) => t.id === 'm-jacket'));
   assert.equal(Ledger.displayStatus(L, d), 'DUPLICATE');
 });
 
@@ -138,10 +155,12 @@ test('TEST 9: a parent order with line items never double counts', () => {
 });
 
 test('TEST 10: the ₹1,01,167 baseline is not reconstructed from incomplete records', () => {
-  const L = L0(); const b = Ledger.baseline(L);
+  // The engine never creates a filler record: with only the visible entries the gap stays a gap.
+  const raw = clone(SEED); raw.transactions = raw.transactions.filter((t) => t.id !== 'hrz-invoice');
+  const L = Ledger.build(raw); const b = Ledger.baseline(L);
   assert.equal(b.reported, P(101167));
   assert.equal(b.imported, P(92669));
-  assert.equal(b.gap, P(8498)); // shown as an explicit gap, never back-filled
+  assert.equal(b.gap, P(8498));
   assert.ok(!L.transactions.some((t) => t.amount === P(8498)));
 });
 
@@ -169,7 +188,7 @@ test('reconciliation counts are derived', () => {
   assert.equal(r.duplicates, 2);
   assert.equal(r.refunded, 1);
   assert.equal(r.needsReview, 10); // ₹1 placeholder + 7 manual/Legundary + 2 Route95 orders
-  assert.equal(r.confirmedIncluded, 53);
+  assert.equal(r.confirmedIncluded, 54); // 53 existing-app entries + HRZ invoice
 });
 
 test('formatINR uses Indian grouping', () => {

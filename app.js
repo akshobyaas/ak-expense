@@ -226,8 +226,8 @@
         <section class="card hero">
           <div style="display:flex;justify-content:space-between;align-items:center"><span class="label">Confirmed ownership cost</span>${modePill()}</div>
           <div class="big num">${big}</div>
-          <div class="ledger-line num"><span>Gross <b>${fmt(T.gross)}</b></span><span>Refunds <b>−${fmt(T.refunds).slice(1)}</b></span><span>Duplicates excluded <b>${fmt(T.duplicates)}</b></span></div>
-          ${T.pending ? `<a class="baseline" href="#/reconcile" style="border-top-style:solid">${ic.warn}<span><b class="num" style="color:var(--warn)">${fmt(T.pending)}</b> across ${rc.needsReview} record${rc.needsReview === 1 ? '' : 's'} is waiting for review and <b>isn't in this total</b>. Some of it may already be inside your old app's total. Reconcile each one to add it.</span></a>` : ''}
+          <div class="ledger-line num"><span>Gross <b>${fmt(T.gross)}</b></span><span>Refunds <b>−${fmt(T.refunds).slice(1)}</b></span></div>
+          ${T.pending ? `<a class="baseline" href="#/reconcile" style="border-top-style:solid">${ic.warn}<span><b class="num" style="color:var(--warn)">${fmt(T.pending)}</b> across ${rc.needsReview} record${rc.needsReview === 1 ? '' : 's'} is waiting for review and <b>isn't in this total</b>. ${B.gap === 0 ? "Your old app's total is now fully itemised, so these can only be new purchases — unless one is actually part of an itemised bill (e.g. the HRZ invoice)." : "Some of it may already be inside your old app's total."} Reconcile each one to add it.</span></a>` : ''}
           ${B.gap ? `<a class="baseline" href="#/reconcile">${ic.info}<span>Your old app reports <b class="num" style="color:var(--text)">${fmt(B.reported)}</b>, but only ${fmt(B.imported)} of it is itemised here. The other <b class="num" style="color:var(--warn)">${fmt(B.gap)}</b> isn't itemised and isn't included in the total above.</span></a>` : ''}
         </section>
         <div class="grid g2 g3 section" style="margin-top:10px">
@@ -235,7 +235,7 @@
         </div>
         <div class="grid g2 g4" style="margin-top:10px">
           ${tile('Refunds', fmt(T.refunds), `${rc.refunded + rc.partiallyRefunded} transaction${rc.refunded + rc.partiallyRefunded === 1 ? '' : 's'}`, null, '#/expenses?refunded=yes')}
-          ${tile('Expenses', String(T.count), `${rc.duplicates} duplicates kept aside`, null, '#/expenses')}
+          ${tile('Expenses', String(T.count), 'counted in the total', null, '#/expenses')}
           ${tile('Avg / month', avg === null ? '—' : fmt(avg), mon.undated ? `excl. ${compact(mon.undated)} undated` : `${mon.series.length} months`, null, '#/analytics')}
           ${tile('Latest', latest ? fmt(latest.amount) : '—', latest ? `${esc(latest.expenditure)} · ${fmtDate(latest.date)}` : 'none dated', null, latest ? `#/e/${encodeURIComponent(latest.id)}` : '')}
         </div>
@@ -265,6 +265,7 @@
   function viewExpenses(params) {
     if (Object.keys(params).length) state.q = Object.assign({ sort: 'newest' }, params);
     const q = state.q; const rows = Ledger.query(L, q);
+    const dupN = L.transactions.filter((t) => t.kind === 'transaction' && Ledger.isDuplicate(t)).length;
     const T = Ledger.totals(L, (t) => rows.includes(t));
     const nf = ['category', 'source', 'status', 'refunded', 'installed', 'from', 'to', 'min', 'max'].filter((k) => q[k]).length;
     return `<div class="view">${topbar('Expenses')}
@@ -272,7 +273,7 @@
         <label class="search">${ic.search}<input id="q" type="search" placeholder="Search expenses, orders, notes" value="${esc(q.search || '')}" autocomplete="off"/></label>
         <button class="btn" id="filters" aria-label="Filters">${ic.filter}<span>Filter</span>${nf ? `<span class="count">${nf}</span>` : ''}</button>
       </div>
-      <div class="summary-line num"><span>${rows.length} record${rows.length === 1 ? '' : 's'}${nf || q.search ? ' · filtered' : ''}</span><span>Net <b style="color:var(--text)">${fmt(T.net)}</b></span></div>
+      <div class="summary-line num"><span>${rows.length} record${rows.length === 1 ? '' : 's'}${nf || q.search ? ' · filtered' : ''}${dupN ? ` · <a href="#" id="dupToggle" style="text-decoration:underline">${q.showDuplicates ? 'hide' : 'show'} ${dupN} duplicate${dupN === 1 ? '' : 's'}</a>` : ''}</span><span>Net <b style="color:var(--text)">${fmt(T.net)}</b></span></div>
       <div class="thead label"><span>Expenditure</span><span>Amount</span><span>Date</span><span>Notes</span></div>
       <div class="rows table" id="rows">${rows.map(rowHTML).join('') || `<div class="empty">Nothing matches.</div>`}</div>
     </div>`;
@@ -281,6 +282,7 @@
     const q = $('#q'); let tm;
     q && q.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { state.q.search = q.value; const rows = Ledger.query(L, state.q); $('#rows').innerHTML = rows.map(rowHTML).join('') || `<div class="empty">Nothing matches.</div>`; const T = Ledger.totals(L, (t) => rows.includes(t)); $('.summary-line').innerHTML = `<span>${rows.length} records${q.value ? ' · filtered' : ''}</span><span>Net <b style="color:var(--text)">${fmt(T.net)}</b></span>`; }, 120); });
     $('#filters')?.addEventListener('click', openFilters);
+    $('#dupToggle')?.addEventListener('click', (e) => { e.preventDefault(); state.q.showDuplicates = !state.q.showDuplicates; render(); });
   }
   function openFilters() {
     const q = state.q; const opt = (arr, v) => `<option value="">Any</option>` + arr.map((a) => `<option ${a === v ? 'selected' : ''}>${esc(a)}</option>`).join('');
@@ -544,7 +546,7 @@
         <p class="muted" style="font-size:12.5px;margin:12px 0 0">The gap is left as a gap on purpose. When a bill shows a pending item is one of those unitemised entries, open it and choose <b>Already in old app total</b>, and the gap shrinks. Importing the older entries from your old app closes it too. Nothing is assumed.</p>
       </section>
       <div class="recon-grid section">${order.map((k) => `<button class="stat card ${state.reconFilter === k ? 'active' : ''}" data-rf="${k}" style="text-align:left;cursor:pointer"><div class="label">${lists[k].label}</div><div class="v num">${lists[k].n}</div></button>`).join('')}</div>
-      ${rc.issues.length ? `<div class="section-h section"><h2>Integrity checks</h2></div><div class="grid">${rc.issues.map((i) => `<a class="callout ${i.level === 'error' ? 'bad' : 'warn'}" href="#/e/${encodeURIComponent(i.id)}">${ic.warn}<span><b>${esc(L.byId.get(i.id)?.expenditure || i.id)}</b> — ${esc(i.msg)}</span></a>`).join('')}</div>` : `<div class="callout section" style="margin-top:14px">${ic.check}<span>All integrity checks pass. Line items match their orders, and every refund and duplicate link is valid.</span></div>`}
+      ${rc.issues.length ? `<div class="section-h section"><h2>Integrity checks</h2></div><div class="grid">${rc.issues.map((i) => `<a class="callout ${i.level === 'error' ? 'bad' : 'warn'}" href="${i.id === '__baseline__' ? '#/reconcile' : '#/e/' + encodeURIComponent(i.id)}">${ic.warn}<span><b>${esc(i.id === '__baseline__' ? 'Old app total' : L.byId.get(i.id)?.expenditure || i.id)}</b> — ${esc(i.msg)}</span></a>`).join('')}</div>` : `<div class="callout section" style="margin-top:14px">${ic.check}<span>All integrity checks pass. Line items match their orders, and every refund and duplicate link is valid.</span></div>`}
       <div class="section-h section"><h2>${cur.label}</h2><span class="muted" style="font-size:12.5px">${cur.rows.length}</span></div>
       <div class="rows table">${cur.rows.map((t) => { let h = rowHTML(t); if (Ledger.isDuplicate(t) && t.duplicate_of) { const o = L.byId.get(t.duplicate_of); h = h.replace('</a>', `<div class="meta" style="grid-column:1/-1"><span class="muted">↳ duplicate of ${esc(o?.expenditure || t.duplicate_of)} (${esc(o?.source || '')})</span></div></a>`); } return h; }).join('') || `<div class="empty">${cur.empty}</div>`}</div>
     </div>`;

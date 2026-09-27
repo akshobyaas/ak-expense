@@ -54,10 +54,10 @@ node scripts/push.mjs data/audit-2026-09-27.json --apply   # write them
 
 - `NET = Σ (amount − refunds)` over confirmed rows (`kind = transaction`, not a duplicate). Pending amounts are reported beside it, never inside it.
 - **Line items never count.** The order total is the money; line items are supporting detail.
-- **Duplicates are kept and linked** (`duplicate_of`), and they're excluded from totals. A new duplicate always links to the original record, never to another duplicate.
+- **Duplicates are kept and linked** (`duplicate_of`), excluded from totals, and hidden from the expense list (toggle "show duplicates" to see them). A new duplicate always links to the original record, never to another duplicate.
 - **Refunds are separate rows.** REFUNDED and PARTIALLY REFUNDED are worked out from them and never typed in by hand.
 - **Dates are never invented.** Undated records sort last and are left out of monthly charts, and the charts say so.
-- **The ₹1,01,167 baseline is kept as a reported number.** The ₹8,498 not itemised here is shown as a gap and is never back-filled.
+- **The ₹1,01,167 baseline is kept as a reported number.** The engine never back-fills a gap; the ₹8,498 remainder is covered only because you identified it as the HRZ invoice (a record you can edit once the invoice is itemised).
 - **Nothing is deleted.** The API has no delete endpoint.
 - **Cost per km stays hidden until real odometer readings exist.**
 
