@@ -1,3 +1,9 @@
-{ "name": "Ixora — Hunter 350", "short_name": "Ixora", "start_url": "/", "display": "standalone",
-  "background_color": "#0b0c0e", "theme_color": "#0b0c0e",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }] }
+{
+  "name": "Ixora — Hunter 350",
+  "short_name": "Ixora",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e2125",
+  "theme_color": "#1e2125",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

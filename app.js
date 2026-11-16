@@ -2,7 +2,7 @@
    All money logic lives in ledger.js; this file only renders and saves. */
 (function () {
   'use strict';
-  const BIKE = { name: 'Ixora', model: 'Hunter 350', owner: 'Akshobya A S', initials: 'AS' };
+  const BIKE = { name: 'Ixora', model: 'Hunter 350', colour: 'London Red', owner: 'Akshobya A S', initials: 'AS' };
 
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -26,33 +26,23 @@
     search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
     alert: svg('<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.01"/>'),
   };
-  const CAT_ICON = {
-    Fuel: svg('<path d="M4 20V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14M3 20h12M4 11h10"/><path d="M14 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/>'),
-    Maintenance: svg('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.6-.6-.6-2.6Z"/>'),
-    Repairs: svg('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.6-.6-.6-2.6Z"/>'),
-    Accessories: svg('<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>'),
-    'Riding Gear': svg('<path d="M4 15a8 8 0 0 1 16-1v2a2 2 0 0 1-2 2H9"/><path d="M4 15h7l2-4h7"/>'),
-    Modification: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>'),
-    Insurance: svg('<path d="M12 3 5 6v5c0 4.5 3 8.3 7 9.5 4-1.2 7-5 7-9.5V6Z"/>'),
-    Documentation: svg('<path d="M7 3h7l4 4v14H7Z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>'),
-    Other: svg('<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>'),
-  };
-  const iconFor = (c) => CAT_ICON[c] || CAT_ICON.Other;
+  const pin = svg('<path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/>');
   // Bookkeeping remarks from the audit stay in the Sheet but aren't shown in the app.
   const HIDDEN_NOTE = /^(Reconciled |Needs reconciliation|₹1 looks like a placeholder|Unitemised part of|invoice not attached)/;
   const cleanNotes = (n) => String(n || '').split(' · ').filter((p) => !HIDDEN_NOTE.test(p)).join(' · ');
+  const readable = (n) => cleanNotes(n).replace(/\s+[—·]\s+/g, ', ').replace(/\bFull Tank\b|\bFull tank\b/g, 'full tank').replace(/\bPartial\b/g, 'partial fill');
   const hiddenNotes = (n) => String(n || '').split(' · ').filter((p) => HIDDEN_NOTE.test(p));
 
   // Categories as people say them. Maintenance + Repairs read as one thing: "Service".
   const GROUPS = [
-    { label: 'Fuel', cats: ['Fuel'], icon: 'Fuel' },
-    { label: 'Service', cats: ['Maintenance', 'Repairs'], icon: 'Repairs' },
-    { label: 'Accessories', cats: ['Accessories'], icon: 'Accessories' },
-    { label: 'Riding gear', cats: ['Riding Gear'], icon: 'Riding Gear' },
-    { label: 'Mods', cats: ['Modification'], icon: 'Modification' },
-    { label: 'Other', cats: ['Insurance', 'Documentation', 'Other'], icon: 'Other' },
+    { label: 'Fuel', cats: ['Fuel'] },
+    { label: 'Service', cats: ['Maintenance', 'Repairs'] },
+    { label: 'Accessories', cats: ['Accessories'] },
+    { label: 'Riding gear', cats: ['Riding Gear'] },
+    { label: 'Mods', cats: ['Modification'] },
+    { label: 'Other', cats: ['Insurance', 'Documentation', 'Other'] },
   ];
-  // What the add form offers (one category per chip).
+  // What the add form offers (one category per tag).
   const ADD_CATS = [['Fuel', 'Fuel'], ['Repairs', 'Service'], ['Accessories', 'Accessories'], ['Riding Gear', 'Riding gear'], ['Modification', 'Mods'], ['Insurance', 'Insurance'], ['Other', 'Other']];
 
   // ── storage: your Google Sheet (via /api/ledger) when a key is set, otherwise this device ──
@@ -121,30 +111,51 @@
     if (!Ledger.counts(L, t)) return `${fmt(t.amount)}<small>not counted</small>`;
     return fmt(t.amount);
   }
+  // The total on Home is set on odometer drums: rupees on dark wells, paise inverted like the tenths drum.
+  function odometer(p) {
+    const reel = (d) => `<span class="drum"><span class="reel" data-d="${d}">${'0123456789'.split('').map((n) => `<span>${n}</span>`).join('')}</span></span>`;
+    const groups = fmt(Math.floor(p / 100) * 100).replace('₹', '').split(',');
+    const ps = p % 100;
+    return `<span class="odo" role="img" aria-label="${fmt(p)}"><span class="cur" aria-hidden="true">₹</span>${groups.map((g) => `<span class="grp" aria-hidden="true">${[...g].map(reel).join('')}</span>`).join('')}${ps ? `<span class="pt" aria-hidden="true">.</span><span class="grp frac" aria-hidden="true">${[...String(ps).padStart(2, '0')].map(reel).join('')}</span>` : ''}</span>`;
+  }
+  // Drums roll up from zero the first time Home opens; after that they just sit at the value.
+  let rolled = false;
+  function setOdometer() {
+    const reels = $$('.odo .reel'); if (!reels.length) return;
+    const go = () => reels.forEach((r, i) => { r.style.transitionDelay = `${i * 70}ms`; r.style.setProperty('--d', r.dataset.d); });
+    if (rolled) { go(); return; }
+    rolled = true; $('.odo').classList.add('roll');
+    requestAnimationFrame(() => requestAnimationFrame(go));
+  }
+  function dateBlock(d) {
+    if (!d) return `<span class="dt none" aria-label="No date"><b>–</b><small>no date</small></span>`;
+    const [y, m, dd] = d.split('-');
+    return `<span class="dt"><b class="num">${+dd}</b><small>${MONTHS[+m - 1]}${y !== todayISO().slice(0, 4) ? ' ’' + y.slice(2) : ''}</small></span>`;
+  }
   function item(t) {
     const kids = L.children.get(t.id) || [];
-    const note = t.notes === t.expenditure ? '' : cleanNotes(t.notes).split(' · ')[0];
-    const sub = [t.date ? shortDate(t.date) : 'No date', kids.length ? `${kids.length} items` : note, t.place ? t.place.split(',')[0] : ''].filter(Boolean).join(' · ');
+    const note = t.notes === t.expenditure ? '' : readable(t.notes).split(' · ')[0];
+    const sub = [kids.length ? `${kids.length} items` : note, t.place ? t.place.split(',')[0] : ''].filter(Boolean).join(', ');
     const off = !Ledger.counts(L, t) || Ledger.displayStatus(L, t) === 'REFUNDED';
-    return `<a class="item ${off ? 'off' : ''}" href="#/e/${encodeURIComponent(t.id)}">
-      <span class="ico">${iconFor(Ledger.categoryOf(L, t))}</span>
-      <span style="min-width:0"><div class="name">${esc(t.expenditure)}</div><div class="sub">${esc(sub)}</div></span>
-      <span class="amt num">${amountCell(t)}</span></a>`;
+    return `<a class="row ${off ? 'off' : ''}" href="#/e/${encodeURIComponent(t.id)}">
+      ${dateBlock(t.date)}
+      <span style="min-width:0"><div class="name">${esc(t.expenditure)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</span>
+      <span class="amt">${amountCell(t)}</span></a>`;
   }
   function groupedList(rows, searching) {
-    if (!rows.length) return `<div class="empty">${searching ? 'No matches.' : 'Nothing here yet.'}</div>`;
+    if (!rows.length) return `<div class="empty">${searching ? 'Nothing matches that search.' : 'No expenses here yet. Use Add to log one.'}</div>`;
     const groups = new Map();
     for (const t of rows) { const k = t.date ? t.date.slice(0, 7) : 'none'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); }
     return [...groups].map(([k, ts]) => {
       const sum = ts.reduce((s, t) => s + (Ledger.counts(L, t) ? Ledger.netOf(L, t) : 0), 0);
-      return `<div class="group"><span>${k === 'none' ? 'Date not known' : monthName(k)}</span><span class="num">${fmt(sum)}</span></div><div class="list">${ts.map(item).join('')}</div>`;
+      return `<div class="month"><span>${k === 'none' ? 'No date' : monthName(k)}</span><span class="num">${fmt(sum)}</span></div><div class="list">${ts.map(item).join('')}</div>`;
     }).join('');
   }
   const head = (title, sub) => `<div class="head"><div><h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ''}</div><a class="avatar" href="#/more" aria-label="More">${BIKE.initials}</a></div>`;
   const backBtn = () => `<button class="back" id="back">${ic.back} Back</button>`;
 
   // ── charts (single accent, hover/tap tooltips) ──
-  const ACC = '#ff6a3d', GRID = 'rgba(255,255,255,.06)', AX = '#7c7a75';
+  const ACC = '#efebe3', GRID = 'rgba(239,235,227,.08)', AX = '#7b7c78';
   function niceCeil(v) { if (v <= 0) return 100; const e = Math.pow(10, Math.floor(Math.log10(v))); const f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; }
   function drawBar(el, series) {
     const W = el.clientWidth || 320, H = 170, padL = 34, padB = 22, padT = 6;
@@ -178,7 +189,7 @@
     [0, top / 2, top].forEach((t) => { s += `<line x1="${padL}" x2="${W - padR}" y1="${y(t)}" y2="${y(t)}" stroke="${GRID}"/><text x="${padL - 6}" y="${y(t) + 4}" text-anchor="end" font-size="11" fill="${AX}">${compact(t)}</text>`; });
     s += `<path d="M${pts.map((p) => p.join(',')).join(' L')}" fill="none" stroke="${ACC}" stroke-width="2" stroke-linejoin="round"/>`;
     series.forEach((d, i) => { if (i % every === 0 || i === series.length - 1) s += `<text x="${x(i)}" y="${H - 5}" text-anchor="middle" font-size="11" fill="${AX}">${monthName(d.month, true)}</text>`; });
-    s += `<line class="xh" y1="${padT}" y2="${H - padB}" stroke="rgba(255,255,255,.2)" opacity="0"/><circle class="dot" r="4.5" fill="${ACC}" stroke="#0d0d0d" stroke-width="2" opacity="0"/><rect class="hit" x="${padL}" y="0" width="${W - padL}" height="${H}" fill="transparent"/></svg><div class="tip"></div>`;
+    s += `<line class="xh" y1="${padT}" y2="${H - padB}" stroke="rgba(255,255,255,.2)" opacity="0"/><circle class="dot" r="4.5" fill="${ACC}" stroke="#1e2125" stroke-width="2" opacity="0"/><rect class="hit" x="${padL}" y="0" width="${W - padL}" height="${H}" fill="transparent"/></svg><div class="tip"></div>`;
     el.innerHTML = s;
     const tip = $('.tip', el), xh = $('.xh', el), dot = $('.dot', el), svgEl = $('svg', el);
     const move = (ev) => {
@@ -205,37 +216,37 @@
     if (T.pending) needs.push(`<b class="num">${fmt(T.pending)}</b> isn't counted yet`);
     if (B.gap) needs.push(`<b class="num">${fmt(B.gap)}</b> from your old app isn't listed`);
     if (rc.issues.length) needs.push(`${rc.issues.length} thing${rc.issues.length === 1 ? '' : 's'} look off`);
-    return `<div class="view">${head(BIKE.name, BIKE.model)}
-      <section class="hero">
-        <div class="k">${esc(BIKE.name)} has cost you</div>
-        <div class="big">${money(T.net)}</div>
-        <div class="sub">${first ? `since ${monthName(first.month)} · ` : ''}<b class="num">${fmt(thisMonth)}</b> this month</div>
-        ${needs.length ? `<a class="note" href="#/check">${ic.alert.replace('<svg', '<svg width="18" height="18" style="flex:none;color:var(--warn)"')}<span>${needs.join(' · ')}. Tap to sort it out.</span></a>` : ''}
+    return `<div class="view">${head(BIKE.name, `${BIKE.model}, ${BIKE.colour}`)}
+      <section class="tank">
+        <p class="lead">${esc(BIKE.name)} has cost you</p>
+        ${odometer(T.net)}
+        <p class="after">${first ? `Since ${monthName(first.month)}. ` : ''}${thisMonth ? `<b class="num">${fmt(thisMonth)}</b> so far this month.` : 'Nothing logged yet this month.'}</p>
+        ${needs.length ? `<a class="attention" href="#/check">${needs.join('; ')}. Tap to check.</a>` : ''}
       </section>
-      <h2 class="sec">Where it went</h2>
-      ${cats.map((c) => `<a class="cat" href="#/expenses?cat=${encodeURIComponent(c.label)}"><span class="ico">${iconFor(c.icon)}</span><span><span>${c.label}</span><span class="pct num">${Math.round((c.v / T.net) * 100)}% · ${c.n}</span><div class="bar"><i style="width:${((c.v / max) * 100).toFixed(1)}%"></i></div></span><span class="num">${fmt(c.v)}</span></a>`).join('') || `<div class="empty">Tap + to log your first expense.</div>`}
-      ${fuel.avgPricePerLitre ? `<p class="sentence"><b class="num">${fuel.fills}</b> fills, <b class="num">${fuel.litres} L</b> of petrol at about <b class="num">${fmt(fuel.avgPricePerLitre)}/L</b> — roughly <b class="num">${fuel.avgLitresPerFill} L</b> a fill.</p>` : ''}
-      <h2 class="sec">Recent <a href="#/expenses">See all</a></h2>
-      <div class="list">${recent.map(item).join('') || '<div class="empty">Nothing yet.</div>'}</div>
+      <h2 class="sec">Where the money went</h2>
+      ${cats.map((c) => `<a class="cat" href="#/expenses?cat=${encodeURIComponent(c.label)}" aria-label="${esc(c.label)}: ${fmt(c.v)}, ${Math.round((c.v / T.net) * 100)} percent"><span class="cn">${c.label}<small>${Math.round((c.v / T.net) * 100)}%</small></span><span class="num">${fmt(c.v)}</span><span class="gauge" style="--f:${(c.v / T.net).toFixed(4)}"><i></i></span></a>`).join('') || `<div class="empty">No expenses yet. Use Add to log your first one.</div>`}
+      ${fuel.avgPricePerLitre ? `<p class="prose"><b class="num">${fuel.fills}</b> fills so far, <b class="num">${fuel.litres} L</b> of petrol at about <b class="num">${fmt(fuel.avgPricePerLitre)}</b> a litre, roughly <b class="num">${fuel.avgLitresPerFill} L</b> each time.</p>` : ''}
+      <h2 class="sec">Latest <a href="#/expenses">All expenses</a></h2>
+      <div class="list">${recent.map(item).join('') || '<div class="empty">Nothing logged yet.</div>'}</div>
     </div>`;
   }
 
   // ── Expenses ──
   const filtered = () => { const g = GROUPS.find((x) => x.label === state.cat); return Ledger.query(L, { search: state.q, category: g ? g.cats.join('|') : '', sort: 'newest' }); };
-  // "Fuel · 38 entries · ₹31,319" — the total always matches what's on screen.
+  // "Fuel, 38 entries   ₹31,319" — the total always matches what's on screen.
   function listSummary(rows) {
     const total = rows.reduce((s, t) => s + (Ledger.counts(L, t) ? Ledger.netOf(L, t) : 0), 0);
     const cat = state.cat === 'all' ? '' : state.cat;
     const label = state.q ? `“${state.q}”${cat ? ' in ' + cat : ''}` : cat || 'All';
-    return `<span>${esc(label)} · ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span><b class="num">${fmt(total)}</b>`;
+    return `<span>${esc(label)}, ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span><b class="num">${fmt(total)}</b>`;
   }
   function viewExpenses(params) {
     if (params.cat) state.cat = params.cat;
     const rows = filtered();
     return `<div class="view">${head('Expenses')}
       <div class="summary" id="sum">${listSummary(rows)}</div>
-      <label class="search">${ic.search.replace('<svg', '<svg width="18" height="18"')}<input id="q" type="search" placeholder="Search" value="${esc(state.q)}" autocomplete="off"/></label>
-      <div class="chips">${['all', ...GROUPS.map((x) => x.label)].map((c) => `<button class="chip ${state.cat === c ? 'on' : ''}" data-cat="${esc(c)}">${c === 'all' ? 'All' : esc(c)}</button>`).join('')}</div>
+      <label class="search">${ic.search}<input id="q" type="search" placeholder="Search by name, place or note" aria-label="Search expenses" value="${esc(state.q)}" autocomplete="off"/></label>
+      <div class="tags" role="group" aria-label="Category">${['all', ...GROUPS.map((x) => x.label)].map((c) => `<button class="tag ${state.cat === c ? 'on' : ''}" aria-pressed="${state.cat === c}" data-cat="${esc(c)}">${c === 'all' ? 'All' : esc(c)}</button>`).join('')}</div>
       <div id="rows">${groupedList(rows, !!state.q)}</div>
     </div>`;
   }
@@ -254,19 +265,20 @@
     const cat = groupOf(t).label;
     const pending = t.kind === 'transaction' && ['NEEDS_REVIEW', 'UNKNOWN'].includes(t.status);
     return `<div class="view">${backBtn()}
-      <div class="d-top"><span class="ico">${iconFor(Ledger.categoryOf(L, t))}</span><div><h1 class="d-name">${esc(t.expenditure)}</h1><div class="d-meta">${esc(cat)} · ${t.date ? longDate(t.date) : 'date not known'}</div></div></div>
+      <h1 class="d-name">${esc(t.expenditure)}</h1>
+      <div class="d-meta">${esc(cat)}, ${t.date ? longDate(t.date) : 'no date'}</div>
       <div class="d-amt">${money(t.amount)}</div>
-      ${Ledger.litresOf(t) && t.category === 'Fuel' ? `<div class="t2">${Ledger.litresOf(t)} L at <b style="color:var(--text)" class="num">${fmt(Math.round(t.amount / Ledger.litresOf(t)))}/L</b></div>` : ''}
-      ${t.place ? `<div class="t2" style="margin-top:4px;display:flex;gap:6px;align-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>${esc(t.place)}</div>` : ''}
-      ${refunded ? `<div class="t2">Refunded ${fmt(refunded)} — counts as <b style="color:var(--text)">${fmt(Ledger.netOf(L, t))}</b></div>` : ''}
-      ${ds === 'DUPLICATE' ? `<div class="t2">A second record of something already logged, so it isn't counted.</div>` : ''}
-      ${pending ? `<div class="warn-card" style="margin-top:14px"><p>This one <b>isn't counted</b> in your total yet.</p><button class="btn sm primary" data-act="count">Count it</button></div>` : ''}
-      ${cleanNotes(t.notes) && t.notes !== t.expenditure ? `<p class="d-notes">${esc(cleanNotes(t.notes))}</p>` : ''}
+      ${Ledger.litresOf(t) && t.category === 'Fuel' ? `<div class="d-line"><span><b class="num">${Ledger.litresOf(t)} L</b>${/full tank/i.test(t.notes) ? ', full tank,' : /partial/i.test(t.notes) ? ', partial fill,' : ''} at <b class="num">${fmt(Math.round(t.amount / Ledger.litresOf(t)))}</b> a litre</span></div>` : ''}
+      ${t.place ? `<div class="d-line">${pin}<span>${esc(t.place)}</span></div>` : ''}
+      ${refunded ? `<div class="d-line"><span>Refunded ${fmt(refunded)}, so it counts as <b>${fmt(Ledger.netOf(L, t))}</b></span></div>` : ''}
+      ${ds === 'DUPLICATE' ? `<div class="d-line"><span>A second record of something already logged, so it isn't counted.</span></div>` : ''}
+      ${pending ? `<div class="notice" style="margin-top:16px"><p>This one <b>isn't counted</b> in your total yet.</p><button class="btn sm red" data-act="count">Count it</button></div>` : ''}
+      ${cleanNotes(t.notes) && t.notes !== t.expenditure && !(t.category === 'Fuel' && Ledger.litresOf(t)) ? `<p class="d-notes">${esc(readable(t.notes))}</p>` : ''}
       ${parent ? `<h2 class="sec">Part of</h2><div class="list">${item(parent)}</div>` : ''}
-      ${kids.length ? `<h2 class="sec">In this order</h2><div class="list">${kids.map((k) => `<a class="item" href="#/e/${encodeURIComponent(k.id)}"><span class="ico">${iconFor(Ledger.categoryOf(L, k))}</span><span style="min-width:0"><div class="name">${esc(k.expenditure)}</div>${k.notes ? `<div class="sub">${esc(k.notes)}</div>` : ''}</span><span class="amt num">${fmt(k.amount)}</span></a>`).join('')}</div>` : ''}
+      ${kids.length ? `<h2 class="sec">In this order</h2><div class="list">${kids.map((k) => `<a class="row" style="grid-template-columns:minmax(0,1fr) auto" href="#/e/${encodeURIComponent(k.id)}"><span style="min-width:0"><div class="name">${esc(k.expenditure)}</div>${k.notes ? `<div class="sub">${esc(readable(k.notes))}</div>` : ''}</span><span class="amt">${fmt(k.amount)}</span></a>`).join('')}</div>` : ''}
       <div class="d-actions">
-        <a class="btn block" href="#/edit/${encodeURIComponent(t.id)}">Edit</a>
-        <button class="btn danger block" data-act="delete">Delete</button>
+        <a class="btn block" href="#/edit/${encodeURIComponent(t.id)}">Edit expense</a>
+        <button class="btn quiet block" data-act="delete">Delete expense</button>
       </div>
     </div>`;
   }
@@ -279,7 +291,7 @@
     $('[data-act="delete"]').onclick = () => {
       const gone = Ledger.deletionSet(L, id); const extra = gone.size - 1;
       sheet(`<h3>Delete ${esc(t.expenditure)}?</h3><p>${fmt(t.amount)} will be removed for good${extra ? `, along with ${extra} linked item${extra === 1 ? '' : 's'}` : ''}. This can't be undone.</p>
-        <div class="row2"><button class="btn" id="n">Keep it</button><button class="btn primary" id="y" style="background:var(--bad)">Delete</button></div>`, (root) => {
+        <div class="pair"><button class="btn" id="n">Keep it</button><button class="btn red" id="y">Delete expense</button></div>`, (root) => {
         $('#n', root).onclick = closeSheet;
         $('#y', root).onclick = async () => {
           $('#y', root).disabled = true;
@@ -307,17 +319,17 @@
     return `<div class="view">${backBtn()}
       <form class="form" id="f" novalidate>
         <label class="amount-in"><span>₹</span><input name="amount" inputmode="decimal" placeholder="0" value="${esc(d.amount)}" autocomplete="off" aria-label="Amount" ${editing ? '' : 'autofocus'}/></label>
-        <div class="chips">${ADD_CATS.map(([v, l]) => `<button type="button" class="chip ${d.category === v || (v === 'Repairs' && d.category === 'Maintenance') ? 'on' : ''}" data-c="${v}">${l}</button>`).join('')}</div>
-        ${fuel ? `<div class="row2"><label class="field"><span>Litres</span><input class="input num" name="litres" inputmode="decimal" placeholder="Optional" value="${esc(d.litres)}"/></label>
+        <div class="tags" role="group" aria-label="Category">${ADD_CATS.map(([v, l]) => { const on = d.category === v || (v === 'Repairs' && d.category === 'Maintenance'); return `<button type="button" class="tag ${on ? 'on' : ''}" aria-pressed="${on}" data-c="${v}">${l}</button>`; }).join('')}</div>
+        ${fuel ? `<div class="pair"><label class="field"><span>Litres</span><input class="input num" name="litres" inputmode="decimal" placeholder="Optional" value="${esc(d.litres)}"/></label>
           <div class="field"><span>Fill</span><div class="seg"><button type="button" data-full="1" class="${d.full ? 'on' : ''}">Full</button><button type="button" data-full="0" class="${d.full ? '' : 'on'}">Partial</button></div></div></div>`
         : `<label class="field"><span>What was it?</span><input class="input" name="expenditure" placeholder="e.g. Chain lube" value="${esc(d.expenditure)}"/></label>`}
         <label class="field"><span>Date <button type="button" class="linkbtn" id="nodate">${d.date ? "Don't know" : 'Use today'}</button></span><input class="input" type="date" name="date" value="${esc(d.date)}"/></label>
         ${d.category === 'Fuel' ? `<div class="field"><span>Place</span><input class="input" name="place" list="places" placeholder="e.g. Koorgally, Mysuru" value="${esc(d.place)}" autocomplete="off"/>
           <datalist id="places">${knownPlaces().map((x) => `<option value="${esc(x.place)}">`).join('')}</datalist>
-          ${knownPlaces().length ? `<div class="chips" style="margin-top:2px">${knownPlaces().slice(0, 4).map((x) => `<button type="button" class="chip" data-place="${esc(x.place)}">${esc(x.place)}</button>`).join('')}</div>` : ''}</div>` : ''}
+          ${knownPlaces().length ? `<div class="tags" style="margin-top:4px">${knownPlaces().slice(0, 4).map((x) => `<button type="button" class="tag" data-place="${esc(x.place)}">${esc(x.place)}</button>`).join('')}</div>` : ''}</div>` : ''}
         ${fuel ? '' : `<label class="field"><span>Note</span><input class="input" name="notes" placeholder="Optional" value="${esc(d.notes)}"/></label>`}
         <div id="dup"></div>
-        <button class="btn primary block" id="save">${editing ? 'Save' : 'Add expense'}</button>
+        <button class="btn red block" id="save">${editing ? 'Save changes' : 'Add expense'}</button>
       </form></div>`;
   }
   function readForm(f) { const d = state.draft; for (const [k, v] of new FormData(f)) if (k in d) d[k] = String(v).trim(); return d; }
@@ -330,12 +342,12 @@
     $$('[data-full]').forEach((b) => b.onclick = () => { state.draft.full = b.dataset.full === '1'; $$('[data-full]').forEach((x) => x.classList.toggle('on', x === b)); });
     $('#nodate').onclick = () => { f.date.value = f.date.value ? '' : todayISO(); readForm(f); $('#nodate').textContent = f.date.value ? "Don't know" : 'Use today'; };
     const save = async (tx) => {
-      try { if (editing) await Store.updateTx(tx); else await Store.addTx(tx); state.draft = null; rebuild(); toast(editing ? 'Saved' : 'Added'); location.hash = editing ? '#/e/' + encodeURIComponent(tx.id) : '#/'; }
+      try { if (editing) await Store.updateTx(tx); else await Store.addTx(tx); state.draft = null; rebuild(); toast(editing ? 'Changes saved' : 'Expense added'); location.hash = editing ? '#/e/' + encodeURIComponent(tx.id) : '#/'; }
       catch (e) { toast('Couldn\'t save: ' + e.message); }
     };
     f.onsubmit = (e) => {
       e.preventDefault(); const d = readForm(f); const p = Ledger.toPaise(d.amount);
-      if (!p || p <= 0) { toast('Enter the amount'); f.amount.focus(); return; }
+      if (!p || p <= 0) { toast('Enter how much you paid'); f.amount.focus(); return; }
       const isFuel = d.category === 'Fuel' && !editing; const litres = parseFloat(d.litres);
       const base = editing ? Object.assign({}, Store.raw.transactions.find((x) => String(x.id) === editId)) : { id: newId(), kind: 'transaction', source: 'Manual', status: 'CONFIRMED_NEW', verified: false };
       const tx = Object.assign(base, {
@@ -345,14 +357,14 @@
         // hidden bookkeeping remarks are carried over on edit, never silently dropped
         notes: isFuel ? [Number.isFinite(litres) ? `${litres.toFixed(2)} L` : '', d.full ? 'Full tank' : 'Partial'].filter(Boolean).join(' — ') : [d.notes, ...(editing ? hiddenNotes(editing.notes) : [])].filter(Boolean).join(' · '),
       });
-      if (!tx.expenditure) { toast('Say what it was'); f.expenditure?.focus(); return; }
+      if (!tx.expenditure) { toast('Add what it was for'); f.expenditure?.focus(); return; }
       if (editing) return save(tx);
       // Don't let the same thing be logged twice by accident.
       const m = Ledger.findDuplicates(L, tx)[0];
       if (!m) return save(tx);
       const x = L.byId.get(m.id);
-      $('#dup').innerHTML = `<div class="warn-card"><p>Looks like you already logged this: <b>${esc(x.expenditure)} · ${fmt(x.amount)}</b>${x.date ? ` on ${shortDate(x.date)}` : ''}.</p><div class="row2"><button type="button" class="btn sm" id="skip">It's the same</button><button type="button" class="btn sm primary" id="anyway">Add anyway</button></div></div>`;
-      $('#skip').onclick = () => { state.draft = null; toast('Not added — already there'); location.hash = '#/e/' + encodeURIComponent(x.id); };
+      $('#dup').innerHTML = `<div class="notice"><p>You may have logged this already: <b>${esc(x.expenditure)}, ${fmt(x.amount)}</b>${x.date ? ` on ${shortDate(x.date)}` : ''}.</p><div class="pair"><button type="button" class="btn sm" id="skip">It's the same one</button><button type="button" class="btn sm red" id="anyway">Add anyway</button></div></div>`;
+      $('#skip').onclick = () => { state.draft = null; toast('Not added, it was already logged'); location.hash = '#/e/' + encodeURIComponent(x.id); };
       $('#anyway').onclick = () => save(tx);
     };
   }
@@ -367,12 +379,15 @@
     const tot = inCat.reduce((s, t) => s + Ledger.netOf(L, t), 0), n = inCat.length;
     const fuel = Ledger.fuelStats(L);
     return `<div class="view">${head('Stats', BIKE.name)}
-      <div class="hero"><div class="k">${g ? esc(g.label) + ' — about' : 'About'}</div><div class="big" style="font-size:44px">${money(Math.round(avg / 100) * 100)}</div><div class="sub">a month on average · <b class="num">${fmt(tot)}</b> in total over ${n} ${n === 1 ? 'entry' : 'entries'}</div></div>
-      <div class="chips" style="margin-top:22px">${['all', ...GROUPS.map((x) => x.label)].map((c) => `<button class="chip ${state.statCat === c ? 'on' : ''}" data-s="${esc(c)}">${c === 'all' ? 'All' : esc(c)}</button>`).join('')}</div>
+      <div class="tags" role="group" aria-label="Category">${['all', ...GROUPS.map((x) => x.label)].map((c) => `<button class="tag ${state.statCat === c ? 'on' : ''}" aria-pressed="${state.statCat === c}" data-s="${esc(c)}">${c === 'all' ? 'Everything' : esc(c)}</button>`).join('')}</div>
+      <p class="prose" style="margin-top:18px">${g ? esc(g.label) + ' costs' : 'Ixora costs'} about</p>
+      <div class="big">${money(Math.round(avg / 100) * 100)}</div>
+      <p class="prose" style="margin-top:0">a month, <b class="num">${fmt(tot)}</b> over ${n} ${n === 1 ? 'entry' : 'entries'} so far.</p>
       ${chart(drawBar, mon.series)}
-      ${mon.undated ? `<p class="sentence" style="font-size:13.5px">${fmt(mon.undated)} has no date, so it isn't in the chart.</p>` : ''}
-      ${g && g.label === 'Fuel' && fuel.fills ? `<div class="card" style="margin-top:18px"><div class="kv"><span>Fills</span><span class="num">${fuel.fills}</span></div><div class="kv"><span>Petrol</span><span class="num">${fuel.litres} L</span></div><div class="kv"><span>Average price</span><span class="num">${fmt(fuel.avgPricePerLitre)}/L</span></div><div class="kv"><span>Average fill</span><span class="num">${fuel.avgLitresPerFill} L</span></div>${knownPlaces().slice(0, 3).map((x, i) => `<div class="kv"><span>${i ? '' : 'Where you fill up'}</span><span>${esc(x.place)} <span class="muted num">× ${x.count}</span></span></div>`).join('')}</div>` : ''}
-      <h2 class="sec">Running total <span class="muted num" style="font-weight:400;font-size:14px">${cum.series.length ? fmt(cum.series.at(-1).value) + (cum.undated ? ' + ' + fmt(cum.undated) + ' undated' : '') : ''}</span></h2>
+      ${mon.undated ? `<p class="prose" style="font-size:14px">${fmt(mon.undated)} has no date, so it isn't in the chart.</p>` : ''}
+      ${g && g.label === 'Fuel' && fuel.fills ? `<div style="margin-top:18px"><div class="kv"><span>Fills</span><span class="num">${fuel.fills}</span></div><div class="kv"><span>Petrol</span><span class="num">${fuel.litres} L</span></div><div class="kv"><span>Average price</span><span class="num">${fmt(fuel.avgPricePerLitre)}/L</span></div><div class="kv"><span>Average fill</span><span class="num">${fuel.avgLitresPerFill} L</span></div>${knownPlaces().slice(0, 3).map((x, i) => `<div class="kv"><span>${i ? '' : 'Where you fill up'}</span><span>${esc(x.place)} <span class="dim num">${x.count}×</span></span></div>`).join('')}</div>` : ''}
+      <h2 class="sec">Running total <span class="num fog" style="font-weight:500;font-size:17px">${cum.series.length ? fmt(cum.series.at(-1).value) : ''}</span></h2>
+      ${cum.undated ? `<p class="prose" style="font-size:14px;margin-top:0">Plus ${fmt(cum.undated)} with no date.</p>` : ''}
       ${chart(drawLine, cum.series)}
     </div>`;
   }
@@ -383,22 +398,21 @@
     const rc = Ledger.reconciliation(L), T = Ledger.totals(L), B = Ledger.baseline(L);
     const ok = !rc.issues.length && !T.pending && !B.gap;
     return `<div class="view">${backBtn()}
-      <div class="d-top"><span class="avatar" style="width:52px;height:52px;font-size:16px">${BIKE.initials}</span><div><h1 class="d-name">${esc(BIKE.owner)}</h1><div class="d-meta">${esc(BIKE.name)} · ${esc(BIKE.model)}</div></div></div>
-      <h2 class="sec">Sync</h2>
-      <div class="card">
-        <div class="kv"><span>Saving to</span><span>${Store.live ? 'Google Sheet' : Store.error ? '<span class="pill bad">Sheet offline — this device</span>' : 'This device only'}</span></div>
-        <div style="padding:6px 0 14px;display:grid;gap:10px"><input class="input" id="key" type="password" placeholder="Vault key" value="${esc(Store.key)}" autocomplete="off" style="background:var(--raise-2)"/>
-        <button class="btn sm" id="savekey">${Store.key ? 'Update key' : 'Connect'}</button></div>
-      </div>
+      <h1 class="d-name">${esc(BIKE.owner)}</h1>
+      <div class="d-meta">Rides ${esc(BIKE.name)}, a ${esc(BIKE.colour)} ${esc(BIKE.model)}</div>
+      <h2 class="sec">Saving</h2>
+      <div class="kv"><span>Expenses are saved to</span><span>${Store.live ? 'your Google Sheet' : Store.error ? '<span class="warn">this phone (Sheet unreachable)</span>' : 'this phone only'}</span></div>
+      <div class="field" style="margin-top:12px"><span>Vault key</span><input class="input" id="key" type="password" value="${esc(Store.key)}" autocomplete="off"/></div>
+      <button class="btn sm block" id="savekey" style="margin-top:10px">${Store.key ? 'Update key' : 'Connect to Sheet'}</button>
       <h2 class="sec">Your data</h2>
-      <div class="row2"><button class="btn sm" id="csv">Export CSV</button><button class="btn sm" id="json">Export JSON</button></div>
-      <a class="item" href="#/check" style="margin-top:14px;grid-template-columns:minmax(0,1fr) auto"><span><div class="name">Check data</div><div class="sub">Totals, duplicates, anything uncounted</div></span><span class="pill ${ok ? 'good' : 'warn'}">${ok ? 'All good' : 'Needs a look'}</span></a>
+      <div class="pair"><button class="btn sm" id="csv">Download CSV</button><button class="btn sm" id="json">Download backup</button></div>
+      <a class="row" href="#/check" style="grid-template-columns:minmax(0,1fr) auto;margin-top:10px"><span><div class="name">Check the numbers</div><div class="sub">Totals, duplicates, anything not counted</div></span><span class="${ok ? 'ok' : 'warn'}">${ok ? 'All adds up' : 'Needs a look'}</span></a>
     </div>`;
   }
   function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
   function bindMore() {
     $('#back').onclick = goBack;
-    $('#savekey').onclick = async () => { Store.key = $('#key').value.trim(); ls.set('akx.key', Store.key); await Store.load(); rebuild(); toast(Store.error ? 'Couldn\'t reach the Sheet' : Store.key ? 'Connected' : 'Saving on this device'); render(); };
+    $('#savekey').onclick = async () => { Store.key = $('#key').value.trim(); ls.set('akx.key', Store.key); await Store.load(); rebuild(); toast(Store.error ? 'Couldn\'t reach the Sheet. Check the key.' : Store.key ? 'Connected to your Sheet' : 'Saving on this phone'); render(); };
     const day = todayISO();
     $('#csv').onclick = () => download(`ixora-expenses-${day}.csv`, Ledger.toCSV(L), 'text/csv');
     $('#json').onclick = () => download(`ixora-backup-${day}.json`, JSON.stringify({ app: 'ixora', exported_at: new Date().toISOString(), transactions: Store.raw.transactions, refunds: Store.raw.refunds }, null, 2), 'application/json');
@@ -409,17 +423,17 @@
     const T = Ledger.totals(L), B = Ledger.baseline(L), rc = Ledger.reconciliation(L);
     const pending = L.transactions.filter((t) => t.kind === 'transaction' && ['NEEDS_REVIEW', 'UNKNOWN'].includes(t.status));
     const dups = L.transactions.filter((t) => t.kind === 'transaction' && Ledger.isDuplicate(t));
-    return `<div class="view">${backBtn()}<h1 class="d-name" style="margin-bottom:18px">Check data</h1>
-      <div class="card">
+    return `<div class="view">${backBtn()}<h1 class="d-name" style="margin-bottom:12px">Check the numbers</h1>
+      <div>
         <div class="kv"><span>Total</span><span class="num">${fmt(T.net)}</span></div>
         <div class="kv"><span>Old app said</span><span class="num">${fmt(B.reported)}</span></div>
         <div class="kv"><span>Old app entries listed here</span><span class="num">${fmt(B.imported)}</span></div>
         ${B.gap ? `<div class="kv"><span>Missing from old app</span><span class="num" style="color:var(--warn)">${fmt(B.gap)}</span></div>` : ''}
         ${T.refunds ? `<div class="kv"><span>Refunds</span><span class="num">${fmt(T.refunds)}</span></div>` : ''}
       </div>
-      ${rc.issues.length ? `<h2 class="sec">Looks off</h2>${rc.issues.map((i) => `<p class="sentence">• ${esc(L.byId.get(i.id)?.expenditure || 'Old app total')}: ${esc(i.msg)}</p>`).join('')}` : `<p class="sentence">Everything adds up. ✓</p>`}
+      ${rc.issues.length ? `<h2 class="sec">Looks off</h2>${rc.issues.map((i) => `<p class="prose">${esc(L.byId.get(i.id)?.expenditure || 'Old app total')}: ${esc(i.msg)}</p>`).join('')}` : `<p class="prose">Everything adds up.</p>`}
       ${pending.length ? `<h2 class="sec">Not counted yet</h2><div class="list">${pending.map(item).join('')}</div>` : ''}
-      ${dups.length ? `<h2 class="sec">Duplicates <span class="muted" style="font-weight:400;font-size:13px">kept out of the total</span></h2><div class="list">${dups.map(item).join('')}</div>` : ''}
+      ${dups.length ? `<h2 class="sec">Duplicates</h2><p class="prose" style="margin-top:0">Second records of things already logged. They stay out of the total.</p><div class="list">${dups.map(item).join('')}</div>` : ''}
     </div>`;
   }
 
@@ -433,7 +447,7 @@
   // ── nav + router ──
   function renderNav(route) {
     const on = (r) => (r === route || (r === 'expenses' && route === 'e') ? 'on' : '');
-    $('#nav').innerHTML = `<a class="${on('')}" href="#/">Home</a><a class="${on('expenses')}" href="#/expenses">Expenses</a><a class="${on('stats')}" href="#/stats">Stats</a><a class="add" href="#/add" aria-label="Add expense">${ic.plus}</a>`;
+    $('#nav').innerHTML = `<a class="${on('')}" href="#/"${on('') ? ' aria-current="page"' : ''}>Home</a><a class="${on('expenses')}" href="#/expenses"${on('expenses') ? ' aria-current="page"' : ''}>Expenses</a><a class="${on('stats')}" href="#/stats"${on('stats') ? ' aria-current="page"' : ''}>Stats</a><a class="add" href="#/add">${ic.plus}Add</a>`;
     $('#nav').style.display = route === 'add' || route === 'edit' ? 'none' : '';
   }
   function parse() { const h = location.hash.replace(/^#\/?/, ''); const [p, qs] = h.split('?'); const [route, id] = p.split('/'); return { route: route || '', id: id ? decodeURIComponent(id) : null, params: Object.fromEntries(new URLSearchParams(qs || '')) }; }
@@ -446,6 +460,7 @@
     if (route + id !== last) { window.scrollTo(0, 0); last = route + id; }
     ({ expenses: bindExpenses, e: () => bindDetail(id), add: () => bindAdd(null), edit: () => bindAdd(id), stats: bindStats, more: bindMore, check: () => ($('#back').onclick = goBack) }[route] || (() => {}))();
     chartJobs.forEach((f) => f());
+    if (route === '') setOdometer();
   }
   window.addEventListener('hashchange', () => { if (!/^#\/(add|edit)/.test(location.hash)) state.draft = null; closeSheet(); render(); });
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => chartJobs.forEach((f) => f()), 150); });
