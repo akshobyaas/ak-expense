@@ -1,12 +1,16 @@
 // Backend data entry for the live app — no frontend import workflow needed.
 //
-//   node scripts/push.mjs data/audit-2026-09-27.json            → preview only (nothing written)
-//   node scripts/push.mjs data/audit-2026-09-27.json --apply    → write to the Google Sheet
+//   node scripts/push.mjs <file> [--apply]
+//     data/seed.js                 → first-time import into an EMPTY sheet
+//     data/migrations/*.json       → field updates / new records (upsert)
+//   Without --apply it only previews; nothing is written.
 //
 // Reads VAULT_API_KEY (and optional APP_URL) from .env.local. The file's "mode" decides the call:
 //   import → first-time load of an EMPTY sheet (the API refuses if rows already exist)
 //   upsert → new ids appended, existing ids merged field-by-field; nothing is ever deleted
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 
 const [file, ...flags] = process.argv.slice(2);
 if (!file) { console.error('usage: node scripts/push.mjs <data.json> [--apply]'); process.exit(1); }
@@ -16,7 +20,9 @@ const KEY = process.env.VAULT_API_KEY || env.VAULT_API_KEY;
 const URL_ = (process.env.APP_URL || env.APP_URL || 'https://expense8849.vercel.app').replace(/\/$/, '');
 if (!KEY) { console.error('VAULT_API_KEY not found in .env.local'); process.exit(1); }
 
-const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+const data = file.endsWith('.js')
+  ? (({ transactions, refunds }) => ({ mode: 'import', transactions, refunds, meta: { reportedBaseline: 101167 } }))(createRequire(import.meta.url)(path.resolve(file)))
+  : JSON.parse(fs.readFileSync(file, 'utf8'));
 const mode = data.mode || 'upsert';
 const txs = data.transactions || [], rfs = data.refunds || [];
 const call = async (method, body, qs = '') => {

@@ -8,7 +8,6 @@
   'use strict';
 
   const CATEGORIES = ['Fuel', 'Maintenance', 'Repairs', 'Accessories', 'Riding Gear', 'Modification', 'Insurance', 'Documentation', 'Other'];
-  const SOURCES = ['Existing Expense App', 'Manual', 'Route95', 'Legundary', 'Invoice', 'Screenshot', 'Other'];
   // Stored reconciliation statuses (audit doc §11). REFUNDED / PARTIALLY_REFUNDED are *derived*
   // from the Refunds tab, never typed by hand, so the refund amount is the single source of truth.
   //   CONFIRMED_INCLUDED — confirmed, and already part of the existing app's reported baseline
@@ -173,12 +172,7 @@
     const { series, undated } = monthly(L); let run = 0;
     return { series: series.map((p) => ({ month: p.month, value: (run += p.value) })), undated };
   }
-  function averageMonthly(L) {
-    const { series } = monthly(L);
-    if (!series.length) return null;
-    const dated = series.reduce((s, p) => s + p.value, 0);
-    return Math.round(dated / series.length);
-  }
+
 
   // Fuel stats — litres parsed from notes ("8.20 L"). Only computed where data exists.
   function litresOf(t) { const m = /(\d+(?:\.\d+)?)\s*L\b/i.exec(t.notes || ''); return m ? parseFloat(m[1]) : null; }
@@ -321,7 +315,6 @@
     return gone;
   }
 
-  function latest(L) { return query(L, { sort: 'newest' }).find((t) => counts(L, t) && t.date) || null; }
 
   // ── export ──
   const CSV_COLS = ['id', 'kind', 'parent_id', 'expenditure', 'amount', 'refunded', 'net', 'counts_in_total', 'display_status', 'date', 'place', 'notes', 'category', 'subcategory', 'source', 'source_reference', 'order_reference', 'status', 'verified', 'installed', 'quantity', 'listed_amount', 'duplicate_of', 'related', 'odometer_km', 'attachment_url', 'created_at', 'updated_at'];
@@ -339,9 +332,9 @@
   }
 
   return {
-    CATEGORIES, SOURCES, STATUSES, CONFIRMED, EXISTING_APP, DEFAULT_SETTINGS, normStatus, inBaseline,
+    CATEGORIES, STATUSES, CONFIRMED, EXISTING_APP, DEFAULT_SETTINGS, normStatus, inBaseline,
     toPaise, fromPaise, formatINR, normTx, build, refundTotal, refundStatus, isDuplicate, counts, netOf,
-    displayStatus, categoryOf, totals, baseline, monthly, cumulative, averageMonthly, litresOf, fuelStats,
-    findDuplicates, issues, reconciliation, query, latest, toCSV, deletionSet,
+    displayStatus, categoryOf, totals, baseline, monthly, cumulative, litresOf, fuelStats,
+    findDuplicates, issues, reconciliation, query, toCSV, deletionSet,
   };
 });

@@ -1,4 +1,4 @@
-// api/ledger.js — Vercel serverless function (same pattern as the vault's api/sheets.js)
+// api/ledger.js — Ixora's backend: one Vercel function in front of your Google Sheet
 // Google Sheet is the database. Tabs: Transactions, Refunds, Meta (auto-created on import).
 //
 // GET    ?type=all                         → { transactions, refunds, meta }
@@ -8,7 +8,6 @@
 // POST   { type:'upsert', transactions, refunds }         → backend data entry: new ids are appended,
 //                                                           existing ids are MERGED field-by-field (never removed).
 //                                                           Used by scripts/push.mjs for audited datasets.
-// POST   { type:'upload', filename, mimeType, data } → Drive upload for invoices/screenshots
 // PUT    { type:'transactions'|'meta', item } → update row by id / key
 //
 // DELETE ?id=<transaction id>                → removes that expense for good, together with its
@@ -118,18 +117,6 @@ module.exports = async function handler(req, res) {
 
     // ── POST ──
     if (req.method === 'POST') {
-      if (body.type === 'upload') {
-        const { filename, mimeType, data } = body;
-        if (!data || !mimeType) return res.status(400).json({ error: 'File data and mimeType required' });
-        if (!/^(image\/(png|jpe?g|webp|heic)|application\/pdf)$/.test(mimeType)) return res.status(400).json({ error: 'Only images or PDF' });
-        const boundary = 'akx' + Date.now();
-        const multipart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: filename || `bill-${Date.now()}`, mimeType })}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${data}\r\n--${boundary}--`;
-        const { data: up } = await safeFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: { Authorization: auth.Authorization, 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart });
-        if (!up.id) return res.status(500).json({ error: 'Drive upload failed', detail: up });
-        // Unlike the vault's prompt images, bills are NOT made public — link opens in your own Drive session.
-        return res.status(200).json({ success: true, url: `https://drive.google.com/file/d/${up.id}/view`, fileId: up.id });
-      }
-
       if (body.type === 'import') {
         await ensureTabs();
         const existing = await read(TABS.transactions);

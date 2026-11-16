@@ -1,6 +1,7 @@
 // data/seed.js — Hunter 350 historical dataset, transcribed from
 // "Bike_Expense_Audit_Context.md" (the source-of-truth audit document).
-// Backend-only: used by tests and by `scripts/push.mjs` to write the Sheet. The frontend never loads it.
+// Backend-only: used by the tests, and by `node scripts/push.mjs data/seed.js --apply` to load an EMPTY sheet
+// (then apply data/migrations/* in order). The frontend never loads it.
 // Rules followed: no invented dates, prices, vendors or mileage. Unknown = null/''.
 // Anything the audit marks "needs reconciliation" is NEEDS_REVIEW and stays OUT of the net total
 // until it is reconciled as CONFIRMED_INCLUDED (already inside the ₹1,01,167 baseline) or CONFIRMED_NEW.
